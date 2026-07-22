@@ -1,0 +1,263 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Area {
+  id           String    @id @default(uuid())
+  name         String
+  description  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  machines     Machine[]
+  audits       Audit[]
+  documents    Document[]
+  kaizens      Kaizen[]
+  faultReports FaultReport[]
+}
+
+model Machine {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  areaId       String
+  area         Area     @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  audits       Audit[]
+  documents    Document[]
+  kaizens      Kaizen[]
+  faultReports FaultReport[]
+}
+
+model Audit {
+  id           String        @id @default(uuid())
+  title        String
+  areaId       String
+  machineId    String?
+  status       String        @default("DRAFT") // DRAFT, IN_PROGRESS, COMPLETED
+  auditTypeId  String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  
+  area         Area          @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  machine      Machine?      @relation(fields: [machineId], references: [id], onDelete: Restrict)
+  auditType    AuditType?    @relation(fields: [auditTypeId], references: [id], onDelete: SetNull)
+  observations Observation[]
+  answers      AuditQuestionAnswer[]
+}
+
+model AuditType {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  audits      Audit[]
+  questions   AuditTypeQuestion[]
+}
+
+model Observation {
+  id           String   @id @default(uuid())
+  auditId      String
+  description  String
+  aiSuggestion String?
+  photoUrl     String?  // Zdjecie dodane przez audytora
+  severity     String?  @default("MODERATE") // CRITICAL, MODERATE, MINOR
+  dueDate      DateTime? // Termin wykonania
+  
+  // Pola dla etapu 4 (Operatorzy)
+  isFixed      Boolean  @default(false)
+  fixPhotoUrl  String?
+  fixedBy      String?
+  fixedAt      DateTime?
+  operatorComment String?
+  
+  assignedToId String?
+  assignedTo   User?    @relation(fields: [assignedToId], references: [id])
+  
+  extensions   ObservationExtension[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  audit        Audit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
+}
+
+model ObservationExtension {
+  id              String      @id @default(uuid())
+  observationId   String
+  observation     Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
+  previousDueDate DateTime?
+  newDueDate       DateTime
+  reason          String      // Powód przedłużenia
+  requestedBy     String      // Kto wnioskował
+  createdAt       DateTime    @default(now())
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  title        String
+  category     String   // np. "5S", "BHP", "Instrukcja obsługi"
+  url          String   // Ścieżka do pliku PDF/zdjęcia
+  
+  // Opcjonalne przypisanie do konkretnej maszyny lub rejonu
+  areaId       String?
+  machineId    String?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  area         Area?    @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  machine      Machine? @relation(fields: [machineId], references: [id], onDelete: Cascade)
+}
+
+model Kaizen {
+  id            String   @id @default(uuid())
+  title         String
+  description   String
+  benefits      String?  // Jakie korzyści przyniesie pomysł
+  submittedBy   String   // Imię i nazwisko pomysłodawcy
+  status        String   @default("PENDING") // PENDING, APPROVED, REJECTED, HOLD
+  committeeNote String?  // Uzasadnienie od komisji
+  photoUrl      String?  // Zdjęcie ilustrujące pomysł/problem
+  
+  areaId        String?
+  machineId     String?
+  area          Area?    @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  machine       Machine? @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Role {
+  id                 String   @id @default(uuid())
+  name               String   @unique
+  description        String?
+  isSystem           Boolean  @default(false)
+
+  // Flagi dostępu do poszczególnych funkcji
+  canCreateAudit     Boolean  @default(false)
+  canCompleteAudit   Boolean  @default(false)
+  canDeleteAudit     Boolean  @default(false)
+  canManageStructure Boolean  @default(false)
+  canManageUsers     Boolean  @default(false)
+  canManageTypes     Boolean  @default(false)
+  canManageKaizen    Boolean  @default(false)
+
+  users              User[]
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model User {
+  id           String   @id @default(uuid())
+  login        String   @unique
+  name         String
+  email        String?  // Adres email do powiadomień
+  passwordHash String
+  role         String   @default("OPERATOR")
+  
+  roleId       String?
+  userRole     Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
+
+  assignedTasks       Observation[]
+  assignedFaultReports FaultReport[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ObservationSeverity {
+  id          String   @id @default(uuid())
+  name        String   // np. "🔴 Krytyczna Niezgodność", "🟢 Dobra Praktyka"
+  color       String   @default("red") // red, orange, yellow, green, blue, purple
+  isPositive  Boolean  @default(false) // Jeśli true -> nie trafia do naprawy przez operatorów
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FaultReport {
+  id           String   @id @default(uuid())
+  title        String
+  description  String
+  severity     String   @default("MODERATE") // CRITICAL, MODERATE, MINOR
+  status       String   @default("OPEN")     // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  reportedBy   String   // Imię i nazwisko zgłaszającego
+  photoUrl     String?  // Zdjęcie usterki
+  fixPhotoUrl  String?  // Zdjęcie potwierdzenia naprawy
+  fixedBy      String?  // Kto naprawił
+  fixedAt      DateTime?
+  operatorComment String?
+  notifyEmails String?  // Lista emaili powiadomień (CSV)
+
+  dueDate      DateTime?
+
+  areaId       String?
+  machineId    String?
+  area         Area?    @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  machine      Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
+
+  assignedToId String?
+  assignedTo   User?    @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AuditTypeQuestion {
+  id             String            @id @default(uuid())
+  auditTypeId    String
+  auditType      AuditType         @relation(fields: [auditTypeId], references: [id], onDelete: Cascade)
+  chapter        String            @default("Ogólne") // np. "1. Kierownictwo", "2. HACCP", "3. Zasoby"
+  code           String?           // np. "1.2.1", "2.1.4"
+  questionText   String
+  guidance       String?           // Wytłumaczenie / Wymóg standardu IFS
+  isKnockOut     Boolean           @default(false) // Pytanie krytyczne KO (IFS Food)
+  sortOrder      Int               @default(0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  answers        AuditQuestionAnswer[]
+}
+
+model AuditQuestionAnswer {
+  id           String            @id @default(uuid())
+  auditId      String
+  audit        Audit             @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  questionId   String
+  question     AuditTypeQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  status       String            @default("PENDING") // PENDING, OK, NOK, GOOD_PRACTICE, NA
+  severity     String?           // np. "🔴 IFS KO (Knock-Out)", "🔴 Krytyczna Niezgodność"
+  comment      String?
+  photoUrl     String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([auditId, questionId])
+}
+
+model AccessLog {
+  id           String   @id @default(uuid())
+  userLogin    String
+  userName     String
+  entityType   String   // AUDIT, TASK, KAIZEN, FAULT
+  entityId     String
+  entityTitle  String
+  openedAt     DateTime @default(now())
+  closedAt     DateTime?
+  durationSec  Int      @default(0)
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([userLogin])
+}
+
+
