@@ -12,48 +12,81 @@ export async function GET() {
       }
     });
 
-    // Inicjalizacja domyślnych ról, jeśli baza jest pusta
-    if (roles.length === 0) {
-      await prisma.role.createMany({
-        data: [
-          {
-            name: 'Administrator',
-            description: 'Pełen dostęp do wszystkich funkcji systemu',
-            isSystem: true,
-            canCreateAudit: true,
-            canCompleteAudit: true,
-            canDeleteAudit: true,
-            canManageStructure: true,
-            canManageUsers: true,
-            canManageTypes: true,
-            canManageKaizen: true,
-          },
-          {
-            name: 'Operator Produkcji',
-            description: 'Dostęp do zadań produkcyjnych i zgłaszania Kaizen',
-            isSystem: true,
-            canCreateAudit: false,
-            canCompleteAudit: false,
-            canDeleteAudit: false,
-            canManageStructure: false,
-            canManageUsers: false,
-            canManageTypes: false,
-            canManageKaizen: false,
-          },
-          {
-            name: 'Audytor',
-            description: 'Przeprowadzanie i zamykanie audytów',
-            isSystem: false,
-            canCreateAudit: true,
-            canCompleteAudit: true,
-            canDeleteAudit: false,
-            canManageStructure: false,
-            canManageUsers: false,
-            canManageTypes: false,
-            canManageKaizen: true,
-          }
-        ]
+    // Ensure 'Zarząd' system role exists
+    const hasZarzad = roles.some(r => r.name.toUpperCase() === 'ZARZĄD' || r.name.toUpperCase() === 'ZARZAD');
+    if (!hasZarzad) {
+      await prisma.role.create({
+        data: {
+          name: 'Zarząd',
+          description: '👑 Nadrzędna dyrekcja i zarząd zakładu. Posiada najwyższe uprawnienia i prawo zarządzania kontami Administratorów.',
+          isSystem: true,
+          canCreateAudit: true,
+          canCompleteAudit: true,
+          canDeleteAudit: true,
+          canManageStructure: true,
+          canManageUsers: true,
+          canManageTypes: true,
+          canManageKaizen: true,
+        }
       });
+
+      roles = await prisma.role.findMany({
+        orderBy: { createdAt: 'asc' },
+        include: {
+          _count: {
+            select: { users: true }
+          }
+        }
+      });
+    }
+
+    // Inicjalizacja pozostałych domyślnych ról, jeśli baza jest pusta
+    if (roles.length <= 1) {
+      const defaultRoles = [
+        {
+          name: 'Administrator',
+          description: 'Zarządzanie systemem audytów, użytkownikami i strukturą',
+          isSystem: true,
+          canCreateAudit: true,
+          canCompleteAudit: true,
+          canDeleteAudit: true,
+          canManageStructure: true,
+          canManageUsers: true,
+          canManageTypes: true,
+          canManageKaizen: true,
+        },
+        {
+          name: 'Operator Produkcji',
+          description: 'Dostęp do zadań produkcyjnych i zgłaszania Kaizen',
+          isSystem: true,
+          canCreateAudit: false,
+          canCompleteAudit: false,
+          canDeleteAudit: false,
+          canManageStructure: false,
+          canManageUsers: false,
+          canManageTypes: false,
+          canManageKaizen: false,
+        },
+        {
+          name: 'Audytor',
+          description: 'Przeprowadzanie i zamykanie audytów',
+          isSystem: false,
+          canCreateAudit: true,
+          canCompleteAudit: true,
+          canDeleteAudit: false,
+          canManageStructure: false,
+          canManageUsers: false,
+          canManageTypes: false,
+          canManageKaizen: true,
+        }
+      ];
+
+      for (const dr of defaultRoles) {
+        const exists = roles.some(r => r.name.toLowerCase() === dr.name.toLowerCase());
+        if (!exists) {
+          await prisma.role.create({ data: dr });
+        }
+      }
 
       roles = await prisma.role.findMany({
         orderBy: { createdAt: 'asc' },

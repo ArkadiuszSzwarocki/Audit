@@ -151,6 +151,15 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
         </svg>
       ),
     },
+    {
+      name: 'Punktacja i Cele Kaizen',
+      href: '/ustawienia/punktacja-kaizen',
+      icon: (
+        <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+        </svg>
+      ),
+    },
   ];
 
   const renderContent = (isMobile = false) => (
@@ -310,45 +319,6 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
               </li>
             </ul>
           </section>
-        )}
-      </div>
-
-      {/* Theme Selector Widget */}
-      <div className="px-4 py-3 border-t border-slate-200/80 dark:border-slate-800/80 bg-slate-50/30 dark:bg-slate-900/40 shrink-0">
-        <ThemeSelector />
-      </div>
-
-      {/* Profile Footer */}
-      <div className="p-4 border-t border-slate-200/80 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/60 shrink-0">
-        {user ? (
-          <div className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 shadow-sm">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-slate-700 to-slate-900 dark:from-slate-600 dark:to-slate-800 text-white font-bold flex items-center justify-center text-sm shrink-0">
-                {user.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="truncate">
-                <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{user.name}</p>
-                <p className="text-[10px] font-semibold text-brand-600 dark:text-brand-400 uppercase tracking-wider">{user.role}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => { logout(); isMobile && onMobileClose(); }}
-              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-all"
-              title="Wyloguj się"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
-          </div>
-        ) : (
-          <Link
-            href="/logowanie"
-            onClick={() => isMobile && onMobileClose()}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-xl shadow-md shadow-brand-500/20 transition-all text-sm"
-          >
-            Zaloguj się
-          </Link>
         )}
       </div>
     </div>

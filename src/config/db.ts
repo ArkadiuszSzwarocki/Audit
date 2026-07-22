@@ -6,7 +6,11 @@ const globalForPrisma = global as unknown as { prisma: PrismaClient };
 const adapter = new PrismaLibSql({ url: 'file:./dev.db' });
 
 export function getPrismaClient(): PrismaClient {
-  if (!globalForPrisma.prisma || !(globalForPrisma.prisma as any).auditTypeQuestion) {
+  if (
+    !globalForPrisma.prisma ||
+    !(globalForPrisma.prisma as any).auditTypeQuestion ||
+    !(globalForPrisma.prisma as any).kaizenScoringCategory
+  ) {
     globalForPrisma.prisma = new PrismaClient({
       adapter,
       log: ['query'],

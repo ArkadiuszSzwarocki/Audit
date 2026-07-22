@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/context/ToastContext';
 import { downloadFaultReportEml } from '@/utils/faultReportEmailBuilder';
+import { ImageUploadWithCamera } from '@/components/ui/ImageUploadWithCamera';
 
 interface Area { id: string; name: string; machines: { id: string; name: string }[] }
 interface User { id: string; name: string; email: string | null }
@@ -289,26 +290,11 @@ export default function NowaUsterkaPage() {
           </div>
         </div>
 
-        {/* Photo */}
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-            Zdjęcie usterki
-          </label>
-          {photoUrl ? (
-            <div className="flex items-center gap-3">
-              <img src={photoUrl} alt="Zdjęcie usterki" className="w-20 h-20 object-cover rounded-xl border border-slate-200" />
-              <button type="button" onClick={() => setPhotoUrl(null)} className="text-xs text-red-500 hover:text-red-700 cursor-pointer">Usuń</button>
-            </div>
-          ) : (
-            <label className="flex items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl cursor-pointer hover:border-brand-400 transition-colors">
-              <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span className="text-sm text-slate-500">{isUploading ? 'Wgrywanie...' : 'Kliknij aby dodać zdjęcie'}</span>
-              <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" disabled={isUploading} />
-            </label>
-          )}
-        </div>
+        <ImageUploadWithCamera
+          label="Zdjęcie usterki"
+          value={photoUrl}
+          onChange={url => setPhotoUrl(url)}
+        />
 
         {/* Notify Emails */}
         <div>

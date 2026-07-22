@@ -1,25 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/config/db';
-import { cookies } from 'next/headers';
-import * as jose from 'jose';
 import bcrypt from 'bcryptjs';
-
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'super-secret-key-for-audit-app-12345');
-
-async function checkIsAdmin() {
-  const cookieStore = await cookies();
-  const sessionToken = cookieStore.get('session_token')?.value;
-  if (!sessionToken) return false;
-  try {
-    const { payload } = await jose.jwtVerify(sessionToken, JWT_SECRET);
-    return payload.role === 'ADMIN';
-  } catch {
-    return false;
-  }
-}
+import { getAuthSession } from '@/lib/auth';
 
 export async function GET() {
-  if (!await checkIsAdmin()) {
+  const session = await getAuthSession();
+  if (!session || !session.isAdmin) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 });
   }
 
@@ -31,7 +17,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!await checkIsAdmin()) {
+  const session = await getAuthSession();
+  if (!session || !session.isAdmin) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 });
   }
 
@@ -45,6 +32,13 @@ export async function POST(request: Request) {
     const existingUser = await prisma.user.findUnique({ where: { login } });
     if (existingUser) {
       return NextResponse.json({ error: 'Użytkownik z takim loginem już istnieje' }, { status: 400 });
+    }
+
+    const requestedRoleUpper = String(role || '').toUpperCase();
+    if ((requestedRoleUpper === 'ZARZAD' || requestedRoleUpper === 'ZARZĄD') && !session.isZarzad) {
+      return NextResponse.json({
+        error: 'Tylko obecny członek Zarządu może tworzyć nowe konta z rolą Zarząd!'
+      }, { status: 403 });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);

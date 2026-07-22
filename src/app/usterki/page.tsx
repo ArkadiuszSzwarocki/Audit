@@ -203,7 +203,7 @@ export default function UsterkiPage() {
                   <th className="p-3">Obszar / Maszyna</th>
                   <th className="p-3">Zgłaszający / Przypisany</th>
                   <th className="p-3 whitespace-nowrap">Data / Termin</th>
-                  <th className="p-3 text-center min-w-[200px]">Akcje i Zapoznanie</th>
+                  <th className="p-3 text-center w-36">Akcje</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
@@ -307,42 +307,40 @@ export default function UsterkiPage() {
                         )}
                       </td>
 
-                      {/* Actions */}
-                      <td className="p-3">
-                        <div className="flex flex-wrap items-center justify-center gap-1.5">
+                      {/* Action Icon Buttons */}
+                      <td className="p-3 text-center">
+                        <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => setHistoryTarget({ id: r.id, title: r.title })}
-                            className="px-2.5 py-1.5 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-700 dark:text-amber-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border border-amber-200 dark:border-amber-800/60"
-                            title="Zobacz kto zapoznał się z tą usterką"
+                            className="p-2 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-bold transition-all border border-amber-200 dark:border-amber-800/60 cursor-pointer"
+                            title="Zobacz osoby, które zapoznały się z tą usterką"
                           >
-                            <span>👥</span> Zapoznania
+                            👥
                           </button>
 
                           <button
                             onClick={() => handleSendEmail(r)}
-                            className="px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border border-indigo-200 dark:border-indigo-800/60"
+                            className="p-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold transition-all border border-indigo-200 dark:border-indigo-800/60 cursor-pointer"
                             title="Pobierz powiadomienie e-mail w formacie .eml"
                           >
-                            <span>📧</span> .EML
+                            📧
                           </button>
 
                           <button
                             onClick={() => router.push(`/kaizen/nowy?title=${encodeURIComponent('Kaizen: ' + r.title)}&description=${encodeURIComponent(r.description)}`)}
-                            className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border border-emerald-200 dark:border-emerald-800/60"
+                            className="p-2 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-bold transition-all border border-emerald-200 dark:border-emerald-800/60 cursor-pointer"
                             title="Przekształć zgłoszenie awarii w wniosek Kaizen"
                           >
-                            <span>💡</span> Kaizen
+                            💡
                           </button>
 
                           {isAdmin && (
                             <button
                               onClick={() => handleDelete(r.id)}
-                              className="p-1.5 bg-red-50 dark:bg-red-950/60 hover:bg-red-100 text-red-600 dark:text-red-400 rounded-lg text-xs font-bold transition-all cursor-pointer border border-red-200 dark:border-red-800/60"
-                              title="Usuń zgłoszenie"
+                              className="p-2 bg-red-50 dark:bg-red-950/60 hover:bg-red-100 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold transition-all border border-red-200 dark:border-red-800/60 cursor-pointer"
+                              title="Usuń zgłoszenie awarii"
                             >
-                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
+                              🗑️
                             </button>
                           )}
                         </div>

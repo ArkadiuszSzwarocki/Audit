@@ -6,6 +6,7 @@ import { useKaizen } from '@/hooks/useKaizen';
 import { useStructure } from '@/hooks/useStructure';
 import { useToast } from '@/context/ToastContext';
 import { downloadKaizenEml } from '@/utils/kaizenEmailBuilder';
+import { ImageUploadWithCamera } from '@/components/ui/ImageUploadWithCamera';
 
 export default function NewKaizenPage() {
   const router = useRouter();
@@ -131,28 +132,11 @@ export default function NewKaizenPage() {
           <textarea value={benefits} onChange={e => setBenefits(e.target.value)} placeholder="np. Szybsze przezbrojenie, większe bezpieczeństwo..." className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-500 outline-none min-h-[80px]" />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Załącznik (Zdjęcie problemu lub szkic rozwiązania)</label>
-          <div className="flex items-center gap-4">
-            <input 
-              type="file" 
-              accept="image/*" 
-              id="kaizen-upload" 
-              className="hidden" 
-              onChange={handleFileUpload} 
-            />
-            <label 
-              htmlFor="kaizen-upload" 
-              className="cursor-pointer px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-              </svg>
-              {isUploading ? 'Wgrywanie...' : 'Wybierz zdjęcie'}
-            </label>
-            {photoUrl && <span className="text-sm text-emerald-600 font-medium">Zdjęcie załączone poprawnie!</span>}
-          </div>
-        </div>
+        <ImageUploadWithCamera
+          label="Załącznik (Zdjęcie problemu lub szkic rozwiązania)"
+          value={photoUrl}
+          onChange={url => setPhotoUrl(url || '')}
+        />
 
         <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
           <h3 className="text-sm font-bold text-slate-500 mb-3">Opcjonalnie: Gdzie wdrożyć pomysł?</h3>

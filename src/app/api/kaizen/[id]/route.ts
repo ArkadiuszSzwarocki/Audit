@@ -26,18 +26,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const { id } = await context.params;
     const body = await request.json();
+
+    const updateData: any = {};
+    if (body.status !== undefined) updateData.status = body.status;
+    if (body.committeeNote !== undefined) updateData.committeeNote = body.committeeNote;
+    if (body.pointsAwarded !== undefined && !isNaN(Number(body.pointsAwarded))) {
+      updateData.pointsAwarded = Number(body.pointsAwarded);
+    }
+    if (body.pointsCategory !== undefined) updateData.pointsCategory = body.pointsCategory;
     
     const kaizen = await prisma.kaizen.update({
       where: { id },
-      data: {
-        status: body.status,
-        committeeNote: body.committeeNote
-      }
+      data: updateData,
     });
     
     return NextResponse.json(kaizen);
-  } catch (error) {
-    return NextResponse.json({ error: 'Błąd podczas aktualizacji statusu' }, { status: 500 });
+  } catch (error: any) {
+    console.error("PATCH /api/kaizen/[id] Error:", error);
+    return NextResponse.json({ error: error?.message || 'Błąd podczas aktualizacji statusu' }, { status: 500 });
   }
 }
 

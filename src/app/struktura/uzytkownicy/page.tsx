@@ -15,7 +15,7 @@ interface User {
 }
 
 export default function UsersPage() {
-  const { isAdmin, loading: authLoading } = useAuth();
+  const { isAdmin, user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { showToast, showConfirm } = useToast();
   const [users, setUsers] = useState<User[]>([]);
@@ -96,7 +96,13 @@ export default function UsersPage() {
     }
   };
 
-  const handleDelete = (id: string, userName: string) => {
+  const handleDelete = (id: string, userName: string, userRole: string) => {
+    const isZarzadRole = userRole.toUpperCase() === 'ZARZAD' || userRole.toUpperCase() === 'ZARZĄD';
+    if (isZarzadRole && user?.role !== 'ZARZAD' && user?.role !== 'Zarząd') {
+      showToast('Niedozwolona operacja! Rola Zarząd posiada nadrzędną władzę – Administrator nie może jej usuwać.', 'error');
+      return;
+    }
+
     showConfirm({
       title: 'Usuwanie Użytkownika',
       message: `Czy na pewno chcesz usunąć użytkownika ${userName}?`,
@@ -104,7 +110,8 @@ export default function UsersPage() {
       isDanger: true,
       onConfirm: async () => {
         const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Nie udało się usunąć użytkownika');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Nie udało się usunąć użytkownika');
         showToast('Użytkownik został usunięty', 'success');
         fetchUsers();
       }
@@ -187,8 +194,9 @@ export default function UsersPage() {
                   className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-brand-500 outline-none"
                 >
                   <option value="OPERATOR">Operator Produkcji (Domyślny)</option>
-                  <option value="ADMIN">Administrator (Pełny dostęp)</option>
-                  {availableRoles.filter(r => r.name !== 'Administrator' && r.name !== 'Operator Produkcji').map(r => (
+                  <option value="ADMIN">Administrator (Zarządzanie)</option>
+                  <option value="ZARZAD">👑 Zarząd (Nadrzędna Dyrekcja)</option>
+                  {availableRoles.filter(r => r.name !== 'Administrator' && r.name !== 'Operator Produkcji' && r.name !== 'Zarząd' && r.name !== 'ZARZAD').map(r => (
                     <option key={r.id} value={r.name}>{r.name}</option>
                   ))}
                 </select>
@@ -226,34 +234,50 @@ export default function UsersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-            {users.map(u => (
-              <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-800 dark:text-slate-100">
-                  {u.name}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
-                  {u.login}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <span className={`px-2 py-1 rounded text-xs font-bold ${
-                    u.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                  }`}>
-                    {u.role}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                  {new Date(u.createdAt).toLocaleDateString()}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                  <button 
-                    onClick={() => handleDelete(u.id, u.name)}
-                    className="text-red-600 hover:text-red-800 font-medium px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                  >
-                    Usuń
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {users.map(u => {
+              const isZarzadRole = u.role.toUpperCase() === 'ZARZAD' || u.role.toUpperCase() === 'ZARZĄD';
+              return (
+                <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-800 dark:text-slate-100">
+                    {u.name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
+                    {u.login}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold shadow-xs ${
+                      isZarzadRole
+                        ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
+                        : u.role === 'ADMIN'
+                        ? 'bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
+                        : 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300'
+                    }`}>
+                      {isZarzadRole ? '👑 Zarząd (Nadrzędna)' : u.role}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                    {new Date(u.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                    <button 
+                      onClick={() => handleDelete(u.id, u.name, u.role)}
+                      className={`font-medium px-2 py-1 rounded transition-colors ${
+                        isZarzadRole && user?.role !== 'ZARZAD' && user?.role !== 'Zarząd'
+                          ? 'text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-50'
+                          : 'text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/20'
+                      }`}
+                      title={
+                        isZarzadRole && user?.role !== 'ZARZAD' && user?.role !== 'Zarząd'
+                          ? 'Rola Zarząd jest chroniona przed usunięciem przez Administratora'
+                          : 'Usuń użytkownika'
+                      }
+                    >
+                      Usuń
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
             {users.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-6 py-8 text-center text-slate-500">

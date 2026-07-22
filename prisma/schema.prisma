@@ -126,6 +126,8 @@ model Kaizen {
   status        String   @default("PENDING") // PENDING, APPROVED, REJECTED, HOLD
   committeeNote String?  // Uzasadnienie od komisji
   photoUrl      String?  // Zdjęcie ilustrujące pomysł/problem
+  pointsAwarded Int?     @default(0) // Przyznane punkty Kaizen
+  pointsCategory String? // Kategoria punktowa (np. Oszczędność Czasu)
   
   areaId        String?
   machineId     String?
@@ -258,6 +260,28 @@ model AccessLog {
 
   @@index([entityType, entityId])
   @@index([userLogin])
+}
+
+model KaizenScoringCategory {
+  id          String   @id @default(uuid())
+  name        String   // np. "Oszczędność czasu / Wydajność", "Ergonomia i 5S"
+  description String?  // Opis i kryteria przyznawania
+  minPoints   Int      @default(10)
+  maxPoints   Int      @default(100)
+  icon        String   @default("⚡")
+  color       String   @default("amber")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model KaizenGoal {
+  id           String   @id @default(uuid())
+  title        String   // np. "Miesięczny Cel Zakładowy Kaizen"
+  targetPoints Int      @default(500)
+  period       String   @default("MONTHLY") // MONTHLY, ANNUAL
+  rewardInfo   String?  // Opis nagrody za osiągnięcie celu
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 

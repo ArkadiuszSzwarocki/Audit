@@ -9,6 +9,24 @@ import { useToast } from '@/context/ToastContext';
 import { useAccessTracker } from '@/hooks/useAccessTracker';
 import { DocumentAccessHistoryModal } from '@/components/ui/DocumentAccessHistoryModal';
 
+interface ScoringCategory {
+  id: string;
+  name: string;
+  description: string;
+  minPoints: number;
+  maxPoints: number;
+  icon: string;
+  color: string;
+}
+
+const DEFAULT_CATEGORIES: ScoringCategory[] = [
+  { id: 'cat-1', name: '⚡ Oszczędność Czasu / Wydajność', description: 'Skrócenie czasu trwania czynności, zamiana długiego procesu w krótki lub przezbrojenie.', minPoints: 10, maxPoints: 100, icon: '⚡', color: 'amber' },
+  { id: 'cat-2', name: '💰 Realne Oszczędności Finansowe', description: 'Redukcja strat surowcowych, energii, komponentów lub bezpośrednich kosztów.', minPoints: 20, maxPoints: 150, icon: '💰', color: 'emerald' },
+  { id: 'cat-3', name: '🧹 Ergonomia & 5S (Organizacja)', description: 'Uporządkowanie stanowiska pracy, lepsze oznakowanie i łatwiejszy dostęp do narzędzi.', minPoints: 5, maxPoints: 30, icon: '🧹', color: 'blue' },
+  { id: 'cat-4', name: '🛡️ Bezpieczeństwo & HACCP (Jakość)', description: 'Eliminacja ryzyka wypadku, skażenia krzyżowego, spełnienie wymogów BHP/HACCP.', minPoints: 15, maxPoints: 60, icon: '🛡️', color: 'purple' },
+  { id: 'cat-5', name: '💡 Inne Udoskonalenie Procesowe', description: 'Pozostałe drobne innowacje i ulepszenia codziennej pracy.', minPoints: 5, maxPoints: 25, icon: '💡', color: 'amber' },
+];
+
 export default function KaizenReviewPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
@@ -21,6 +39,10 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
   
   const [status, setStatus] = useState<string>('PENDING');
   const [committeeNote, setCommitteeNote] = useState('');
+  const [pointsAwarded, setPointsAwarded] = useState<number>(0);
+  const [pointsCategory, setPointsCategory] = useState<string>('');
+  const [scoringCategories, setScoringCategories] = useState<ScoringCategory[]>(DEFAULT_CATEGORIES);
+  
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -33,7 +55,22 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
 
   useEffect(() => {
     loadKaizen();
+    fetchScoringCategories();
   }, [resolvedParams.id]);
+
+  const fetchScoringCategories = async () => {
+    try {
+      const res = await fetch('/api/kaizen-scoring');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.categories) && data.categories.length > 0) {
+          setScoringCategories(data.categories);
+        }
+      }
+    } catch (err) {
+      console.error('Błąd pobierania kategorii punktacji:', err);
+    }
+  };
 
   const loadKaizen = async () => {
     setLoading(true);
@@ -42,6 +79,8 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
       setKaizen(data);
       setStatus(data.status);
       setCommitteeNote(data.committeeNote || '');
+      setPointsAwarded(data.pointsAwarded || 0);
+      setPointsCategory(data.pointsCategory || '');
     } catch (err: any) {
       showToast(err.message || 'Nie znaleziono wniosku', 'error');
     } finally {
@@ -53,8 +92,14 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
     if (!status) return;
     setIsUpdating(true);
     try {
-      await updateKaizenStatus(resolvedParams.id, status, committeeNote);
-      showToast('Decyzja komisji została zapisana!', 'success');
+      await updateKaizenStatus(
+        resolvedParams.id,
+        status,
+        committeeNote,
+        status === 'APPROVED' ? pointsAwarded : 0,
+        status === 'APPROVED' ? pointsCategory : undefined
+      );
+      showToast('Decyzja komisji oraz przyznane punkty zostały zapisane!', 'success');
       router.push('/kaizen');
     } catch (err: any) {
       showToast(err.message, 'error');
@@ -82,8 +127,8 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
     window.print();
   };
 
-  if (loading) return <div className="p-8 text-center animate-pulse print:hidden">Ładowanie wniosku...</div>;
-  if (!kaizen) return <div className="p-8 text-center text-red-500 print:hidden">Błąd ładowania wniosku.</div>;
+  if (loading) return <div className="p-8 text-center animate-pulse print:hidden font-bold text-slate-400">Ładowanie wniosku...</div>;
+  if (!kaizen) return <div className="p-8 text-center text-red-500 print:hidden font-bold">Błąd ładowania wniosku.</div>;
 
   return (
     <>
@@ -99,7 +144,7 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
               {isAdmin && (
                 <button 
                   onClick={handleDelete}
-                  className="p-2 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg transition-colors"
+                  className="p-2 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg transition-colors cursor-pointer"
                   title="Usuń wniosek"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -127,7 +172,7 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
 
             <button
               onClick={handlePrint}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl shadow-md font-bold transition-all text-sm flex items-center gap-2"
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl shadow-md font-bold transition-all text-sm flex items-center gap-2 cursor-pointer"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -135,7 +180,7 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
               Drukuj Formularz
             </button>
 
-            <span className={`px-4 py-2 rounded-lg text-sm font-bold ${
+            <span className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 ${
               kaizen.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
               kaizen.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
               kaizen.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
@@ -144,6 +189,12 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
               {kaizen.status === 'PENDING' ? 'Oczekujący na decyzję' :
                kaizen.status === 'APPROVED' ? 'Zatwierdzony' :
                kaizen.status === 'REJECTED' ? 'Odrzucony' : 'Wstrzymany'}
+
+              {kaizen.status === 'APPROVED' && Boolean(kaizen.pointsAwarded) && (
+                <span className="px-2 py-0.5 bg-amber-500 text-white font-black text-xs rounded-full shadow-xs">
+                  ⭐ +{kaizen.pointsAwarded} pkt
+                </span>
+              )}
             </span>
           </div>
         </div>
@@ -178,21 +229,31 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
               </div>
             </div>
 
-            {kaizen.photoUrl && (
-              <div className="glass-card p-6 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
-                <h3 className="text-sm font-bold text-slate-500 mb-4 uppercase tracking-wider">Załącznik</h3>
-                <div 
-                  className="relative h-48 w-full rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 cursor-pointer group"
-                  onClick={() => setSelectedImage(kaizen.photoUrl!)}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={kaizen.photoUrl} alt="Załącznik do Kaizen" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className="text-white font-medium bg-black/50 px-3 py-1 rounded-md backdrop-blur-sm">Kliknij, aby powiększyć</span>
+            {kaizen.photoUrl && (() => {
+              const photos = kaizen.photoUrl.split(',').map(s => s.trim()).filter(Boolean);
+              if (photos.length === 0) return null;
+              return (
+                <div className="glass-card p-6 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 space-y-3">
+                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">
+                    Załączniki ({photos.length})
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {photos.map((url, idx) => (
+                      <div 
+                        key={`${url}-${idx}`}
+                        className="relative aspect-square w-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 cursor-pointer group bg-slate-900"
+                        onClick={() => setSelectedImage(url)}
+                      >
+                        <img src={url} alt={`Załącznik ${idx + 1}`} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="text-white text-xs font-bold bg-black/60 px-2.5 py-1 rounded-md backdrop-blur-xs">🔍 Powiększ</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </div>
 
@@ -208,7 +269,7 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
                     <button
                       key={s}
                       onClick={() => setStatus(s)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-colors border ${
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors border cursor-pointer ${
                         status === s 
                           ? 'bg-brand-600 text-white border-brand-600 shadow-md' 
                           : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-brand-400'
@@ -222,6 +283,74 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
                 </div>
               </div>
 
+              {/* Panel Przyznawania Punktów podczas Akceptacji */}
+              {status === 'APPROVED' && (
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 dark:border-amber-700/80 rounded-2xl space-y-4 animate-in fade-in">
+                  <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-extrabold text-base">
+                    <span className="text-2xl">⭐</span>
+                    <span>Przyznanie Punktów Kaizen dla Pomysłodawcy</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+                        Sugerowana Kategoria / Widełki Punktowe
+                      </label>
+                      <select
+                        value={pointsCategory}
+                        onChange={e => {
+                          const catName = e.target.value;
+                          setPointsCategory(catName);
+                          const foundCat = scoringCategories.find(c => c.name === catName);
+                          if (foundCat) {
+                            // Default to mid-range points
+                            const mid = Math.round((foundCat.minPoints + foundCat.maxPoints) / 2);
+                            setPointsAwarded(mid);
+                          }
+                        }}
+                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                      >
+                        <option value="">-- Wybierz kategorię wpływu --</option>
+                        {scoringCategories.map(cat => (
+                          <option key={cat.id || cat.name} value={cat.name}>
+                            {cat.name} ({cat.minPoints} – {cat.maxPoints} pkt)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+                        Liczba Przyznanych Punktów (pkt) *
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="number"
+                          min={0}
+                          max={500}
+                          value={pointsAwarded}
+                          onChange={e => setPointsAwarded(Number(e.target.value) || 0)}
+                          className="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 rounded-xl text-base font-black text-amber-600 dark:text-amber-400 outline-none focus:ring-2 focus:ring-amber-500"
+                        />
+                        <span className="text-xs font-black text-amber-700 dark:text-amber-300 shrink-0">
+                          ⭐ pkt
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {pointsCategory && (() => {
+                    const foundCat = scoringCategories.find(c => c.name === pointsCategory);
+                    if (!foundCat) return null;
+                    return (
+                      <p className="text-xs text-amber-800 dark:text-amber-300/90 font-medium bg-amber-100/60 dark:bg-amber-900/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-800">
+                        💡 <strong>Kryteria:</strong> {foundCat.description} (Zalecane widełki: {foundCat.minPoints} - {foundCat.maxPoints} pkt).
+                      </p>
+                    );
+                  })()}
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-brand-900 dark:text-brand-300 mb-2">Komentarz / Uzasadnienie (Opcjonalnie)</label>
                 <textarea 
@@ -234,8 +363,8 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
 
               <button 
                 onClick={handleUpdate}
-                disabled={isUpdating || status === kaizen.status && committeeNote === (kaizen.committeeNote || '')}
-                className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-md transition-colors disabled:opacity-50"
+                disabled={isUpdating}
+                className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-md transition-colors cursor-pointer disabled:opacity-50"
               >
                 {isUpdating ? 'Zapisywanie...' : 'Zapisz decyzję'}
               </button>
@@ -246,18 +375,29 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
             <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4">Decyzja Komisji Kaizen</h2>
             
             <div className="space-y-4">
-              <div>
-                <p className="text-sm text-slate-500 font-medium mb-1">Obecny status</p>
-                <span className={`inline-block px-3 py-1 rounded-lg font-bold text-sm ${
-                  kaizen.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                  kaizen.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
-                  kaizen.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
-                  'bg-slate-200 text-slate-700'
-                }`}>
-                  {kaizen.status === 'PENDING' ? 'Oczekujący na decyzję' :
-                   kaizen.status === 'APPROVED' ? 'Zatwierdzony' :
-                   kaizen.status === 'REJECTED' ? 'Odrzucony' : 'Wstrzymany'}
-                </span>
+              <div className="flex items-center gap-3">
+                <div>
+                  <p className="text-sm text-slate-500 font-medium mb-1">Obecny status</p>
+                  <span className={`inline-block px-3 py-1 rounded-lg font-bold text-sm ${
+                    kaizen.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
+                    kaizen.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
+                    kaizen.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                    'bg-slate-200 text-slate-700'
+                  }`}>
+                    {kaizen.status === 'PENDING' ? 'Oczekujący na decyzję' :
+                     kaizen.status === 'APPROVED' ? 'Zatwierdzenie' :
+                     kaizen.status === 'REJECTED' ? 'Odrzucony' : 'Wstrzymany'}
+                  </span>
+                </div>
+
+                {kaizen.status === 'APPROVED' && Boolean(kaizen.pointsAwarded) && (
+                  <div>
+                    <p className="text-sm text-slate-500 font-medium mb-1">Przyznane punkty</p>
+                    <span className="inline-block px-3 py-1 bg-amber-500 text-white font-black text-sm rounded-lg shadow-xs">
+                      ⭐ {kaizen.pointsAwarded} pkt {kaizen.pointsCategory ? `(${kaizen.pointsCategory})` : ''}
+                    </span>
+                  </div>
+                )}
               </div>
               
               {kaizen.committeeNote && (
@@ -361,7 +501,7 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
             </div>
 
             <div>
-              <p className="text-xs font-bold text-gray-600 uppercase mb-2">Uzasadnienie / Uwagi Komisji (do wypełnienia ręcznego):</p>
+              <p className="text-xs font-bold text-gray-600 uppercase mb-2">Uzasadnienie / Uwagi Komisji oraz Przyznane Punkty:</p>
               <div className="border-b border-gray-400 h-6 mb-2"></div>
               <div className="border-b border-gray-400 h-6 mb-2"></div>
               <div className="border-b border-gray-400 h-6"></div>
@@ -371,10 +511,17 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
           <div className="border-2 border-black p-4 space-y-3">
             <div className="flex justify-between items-center border-b border-gray-300 pb-2">
               <p className="text-sm font-black uppercase">Ocena i Decyzja Komisji Kaizen</p>
-              <div className="text-sm font-black px-3 py-1 border-2 border-black bg-gray-100 uppercase">
-                {kaizen.status === 'APPROVED' && '[✓] ZATWIERDZONE'}
-                {kaizen.status === 'REJECTED' && '[✗] ODRZUCONE'}
-                {kaizen.status === 'HOLD' && '[!] WSTRZYMANE'}
+              <div className="text-sm font-black px-3 py-1 border-2 border-black bg-gray-100 uppercase flex items-center gap-2">
+                <span>
+                  {kaizen.status === 'APPROVED' && '[✓] ZATWIERDZONE'}
+                  {kaizen.status === 'REJECTED' && '[✗] ODRZUCONE'}
+                  {kaizen.status === 'HOLD' && '[!] WSTRZYMANE'}
+                </span>
+                {kaizen.status === 'APPROVED' && Boolean(kaizen.pointsAwarded) && (
+                  <span className="border-l border-black pl-2 font-black text-black">
+                    ⭐ {kaizen.pointsAwarded} PKT
+                  </span>
+                )}
               </div>
             </div>
 

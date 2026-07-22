@@ -226,7 +226,7 @@ export function AuditChecklistFormatka({ auditId, isReadOnly = false, onObservat
   };
 
   if (loading) {
-    return <div className="text-center p-8 text-slate-400 animate-pulse">Ładowanie formatki pytań...</div>;
+    return <div className="text-center p-8 text-slate-400 animate-pulse font-bold">Ładowanie formatki pytań...</div>;
   }
 
   if (checklist.length === 0) {
@@ -443,71 +443,80 @@ export function AuditChecklistFormatka({ auditId, isReadOnly = false, onObservat
                         </div>
                       )}
 
-                      {/* Action Row: Assessment buttons */}
+                      {/* Action Row: Assessment controls */}
                       <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200/60 dark:border-slate-800">
-                        {/* Single Unified Dropdown Select for Question Evaluation */}
+                        {/* Status badge in read-only mode vs. interactive select in edit mode */}
                         <div className="flex items-center gap-2">
-                          <select
-                            disabled={isReadOnly}
-                            tabIndex={isReadOnly ? -1 : 0}
-                            value={
-                              q.status === 'OK' ? 'OK' :
-                              q.status === 'GOOD_PRACTICE' ? (q.severity?.toLowerCase().includes('kaizen') || q.severity?.toLowerCase().includes('udoskonalen') ? 'KAIZEN' : 'GOOD_PRACTICE') :
-                              q.status === 'NA' ? 'NA' :
-                              q.status === 'NOK' ? (selectedSeverities[q.questionId] || '🔴 IFS KO (Knock-Out)') :
-                              ''
-                            }
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (!val || isReadOnly) return;
-
-                              if (val === 'OK') {
-                                handleUpdateStatus(q.questionId, 'OK');
-                              } else if (val === 'GOOD_PRACTICE') {
-                                handleUpdateStatus(q.questionId, 'GOOD_PRACTICE');
-                              } else if (val === 'KAIZEN') {
-                                setSelectedSeverities(prev => ({ ...prev, [q.questionId]: '💡 Propozycja Udoskonalenia (Kaizen)' }));
-                                handleUpdateStatus(q.questionId, 'GOOD_PRACTICE', q.comment, q.photoUrl, '💡 Propozycja Udoskonalenia (Kaizen)');
-                              } else if (val === 'NA') {
-                                handleUpdateStatus(q.questionId, 'NA');
-                              } else {
-                                // Any NOK severity choice (e.g. 🔴 IFS KO (Knock-Out) or 🔴 Krytyczna)
-                                setSelectedSeverities(prev => ({ ...prev, [q.questionId]: val }));
-                                handleUpdateStatus(q.questionId, 'NOK', q.comment, q.photoUrl, val);
-                              }
-                            }}
-                            className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all outline-none border-2 shadow-sm ${
-                              isReadOnly
-                                ? 'pointer-events-none opacity-50 bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed select-none border-slate-300 dark:border-slate-700'
-                                : 'cursor-pointer'
-                            } ${
+                          {isReadOnly ? (
+                            <div className={`px-4 py-2 rounded-xl font-black text-xs border-2 shadow-xs flex items-center gap-1.5 ${
                               q.status === 'OK' ? 'bg-emerald-600 text-white border-emerald-700' :
-                              q.status === 'NOK' ? 'bg-red-600 text-white border-red-700 scale-105' :
+                              q.status === 'NOK' ? 'bg-red-600 text-white border-red-700' :
                               q.status === 'GOOD_PRACTICE' ? (q.severity?.toLowerCase().includes('kaizen') || q.severity?.toLowerCase().includes('udoskonalen') ? 'bg-amber-600 text-white border-amber-700' : 'bg-blue-600 text-white border-blue-700') :
                               q.status === 'NA' ? 'bg-slate-600 text-white border-slate-700' :
-                              'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
-                            }`}
-                          >
-                            <option value="" disabled>-- Wybierz wynik / ocenę audytu --</option>
-                            
-                            <optgroup label="✅ Ocena Pozytywna / Udoskonalenia" className="bg-slate-900 text-emerald-400 font-bold">
-                              <option value="OK" className="bg-slate-900 text-emerald-400 font-bold">✅ Zgodne (OK)</option>
-                              <option value="GOOD_PRACTICE" className="bg-slate-900 text-blue-400 font-bold">🟢 Dobra Praktyka</option>
-                              <option value="KAIZEN" className="bg-slate-900 text-amber-400 font-extrabold">💡 Propozycja Udoskonalenia (Kaizen)</option>
-                              <option value="NA" className="bg-slate-900 text-slate-300 font-bold">⚪ N/A (Nie dotyczy)</option>
-                            </optgroup>
+                              'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-300 dark:border-slate-700'
+                            }`}>
+                              {q.status === 'OK' && '✅ Zgodne (OK)'}
+                              {q.status === 'NOK' && (selectedSeverities[q.questionId] || '🔴 IFS KO (Knock-Out)')}
+                              {q.status === 'GOOD_PRACTICE' && (q.severity?.toLowerCase().includes('kaizen') || q.severity?.toLowerCase().includes('udoskonalen') ? '💡 Propozycja Udoskonalenia (Kaizen)' : '🟢 Dobra Praktyka')}
+                              {q.status === 'NA' && '⚪ N/A (Nie dotyczy)'}
+                              {q.status === 'PENDING' && '⚪ Nieoceniono'}
+                            </div>
+                          ) : (
+                            <select
+                              value={
+                                q.status === 'OK' ? 'OK' :
+                                q.status === 'GOOD_PRACTICE' ? (q.severity?.toLowerCase().includes('kaizen') || q.severity?.toLowerCase().includes('udoskonalen') ? 'KAIZEN' : 'GOOD_PRACTICE') :
+                                q.status === 'NA' ? 'NA' :
+                                q.status === 'NOK' ? (selectedSeverities[q.questionId] || '🔴 IFS KO (Knock-Out)') :
+                                ''
+                              }
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (!val) return;
 
-                            <optgroup label="🔴 Niezgodności i Wymogi KO (Usterka Produkcyjna)" className="bg-slate-900 text-red-400 font-bold">
-                              <option value="🔴 IFS KO (Knock-Out)" className="bg-slate-900 text-red-400 font-black">
-                                🔴 IFS KO (Knock-Out — Oblewa Audyt)
-                              </option>
-                              {severities.filter(s => !s.isPositive).map(s => (
-                                <option key={s.id} value={s.name} className="bg-slate-900 text-white font-bold">
-                                  ⚠️ {s.name}
+                                if (val === 'OK') {
+                                  handleUpdateStatus(q.questionId, 'OK');
+                                } else if (val === 'GOOD_PRACTICE') {
+                                  handleUpdateStatus(q.questionId, 'GOOD_PRACTICE');
+                                } else if (val === 'KAIZEN') {
+                                  setSelectedSeverities(prev => ({ ...prev, [q.questionId]: '💡 Propozycja Udoskonalenia (Kaizen)' }));
+                                  handleUpdateStatus(q.questionId, 'GOOD_PRACTICE', q.comment, q.photoUrl, '💡 Propozycja Udoskonalenia (Kaizen)');
+                                } else if (val === 'NA') {
+                                  handleUpdateStatus(q.questionId, 'NA');
+                                } else {
+                                  setSelectedSeverities(prev => ({ ...prev, [q.questionId]: val }));
+                                  handleUpdateStatus(q.questionId, 'NOK', q.comment, q.photoUrl, val);
+                                }
+                              }}
+                              className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all outline-none border-2 shadow-sm cursor-pointer ${
+                                q.status === 'OK' ? 'bg-emerald-600 text-white border-emerald-700' :
+                                q.status === 'NOK' ? 'bg-red-600 text-white border-red-700 scale-105' :
+                                q.status === 'GOOD_PRACTICE' ? (q.severity?.toLowerCase().includes('kaizen') || q.severity?.toLowerCase().includes('udoskonalen') ? 'bg-amber-600 text-white border-amber-700' : 'bg-blue-600 text-white border-blue-700') :
+                                q.status === 'NA' ? 'bg-slate-600 text-white border-slate-700' :
+                                'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
+                              }`}
+                            >
+                              <option value="" disabled>-- Wybierz wynik / ocenę audytu --</option>
+                              
+                              <optgroup label="✅ Ocena Pozytywna / Udoskonalenia" className="bg-slate-900 text-emerald-400 font-bold">
+                                <option value="OK" className="bg-slate-900 text-emerald-400 font-bold">✅ Zgodne (OK)</option>
+                                <option value="GOOD_PRACTICE" className="bg-slate-900 text-blue-400 font-bold">🟢 Dobra Praktyka</option>
+                                <option value="KAIZEN" className="bg-slate-900 text-amber-400 font-extrabold">💡 Propozycja Udoskonalenia (Kaizen)</option>
+                                <option value="NA" className="bg-slate-900 text-slate-300 font-bold">⚪ N/A (Nie dotyczy)</option>
+                              </optgroup>
+
+                              <optgroup label="🔴 Niezgodności i Wymogi KO (Usterka Produkcyjna)" className="bg-slate-900 text-red-400 font-bold">
+                                <option value="🔴 IFS KO (Knock-Out)" className="bg-slate-900 text-red-400 font-black">
+                                  🔴 IFS KO (Knock-Out — Oblewa Audyt)
                                 </option>
-                              ))}
-                            </optgroup>
-                          </select>
+                                {severities.filter(s => !s.isPositive).map(s => (
+                                  <option key={s.id} value={s.name} className="bg-slate-900 text-white font-bold">
+                                    ⚠️ {s.name}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            </select>
+                          )}
                         </div>
 
                         {/* Photo attachment button & Dedicated Kaizen button */}
@@ -516,10 +525,11 @@ export function AuditChecklistFormatka({ auditId, isReadOnly = false, onObservat
                             type="button"
                             onClick={() => !isReadOnly && setKaizenModalQuestion(q)}
                             disabled={isReadOnly}
-                            tabIndex={isReadOnly ? -1 : 0}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all shadow-xs flex items-center gap-1.5 ${
+                            className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all border shadow-xs flex items-center gap-1.5 ${
                               isReadOnly
-                                ? 'pointer-events-none opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400 select-none border-none'
+                                ? (q.severity?.toLowerCase().includes('kaizen') || q.severity?.toLowerCase().includes('udoskonalen')
+                                    ? 'bg-amber-500 text-white border-amber-600 font-black cursor-not-allowed'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700 cursor-not-allowed font-bold')
                                 : q.severity?.toLowerCase().includes('kaizen') || q.severity?.toLowerCase().includes('udoskonalen')
                                 ? 'bg-amber-500 text-white font-black shadow-amber-500/30'
                                 : 'bg-amber-100 hover:bg-amber-200 text-amber-900 dark:bg-amber-950/80 dark:hover:bg-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800 cursor-pointer'
@@ -529,15 +539,16 @@ export function AuditChecklistFormatka({ auditId, isReadOnly = false, onObservat
                             💡 Zgłoś jako Kaizen
                           </button>
 
-                          <label className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          <label className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 border ${
                             isReadOnly
-                              ? 'pointer-events-none opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400 select-none'
-                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer'
+                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700 cursor-not-allowed font-bold'
+                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer border-slate-200 dark:border-slate-700'
                           }`}>
                             📷 {isUploading ? 'Wgrywanie...' : q.photoUrl ? 'Zmień zdjęcie' : 'Załącz zdjęcie'}
                             <input
                               type="file"
                               accept="image/*"
+                              capture="environment"
                               className="hidden"
                               onChange={e => {
                                 const file = e.target.files?.[0];
@@ -552,7 +563,7 @@ export function AuditChecklistFormatka({ auditId, isReadOnly = false, onObservat
                               href={q.photoUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-xs text-blue-600 hover:underline font-bold"
+                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-extrabold flex items-center gap-1"
                             >
                               Podgląd 📷
                             </a>
@@ -560,13 +571,13 @@ export function AuditChecklistFormatka({ auditId, isReadOnly = false, onObservat
                         </div>
                       </div>
 
-                      {/* Comment Input */}
+                      {/* Comment / Evidence Input */}
                       <div>
                         <input
                           type="text"
                           disabled={isReadOnly}
                           readOnly={isReadOnly}
-                          placeholder={isReadOnly ? 'Podgląd dowodu audytowego (zablokowano)' : 'Dodaj opcjonalną uwagę lub dowód audytowy...'}
+                          placeholder={isReadOnly ? (q.comment ? '' : 'Brak uwag / dowodu audytowego') : 'Dodaj opcjonalną uwagę lub dowód audytowy...'}
                           value={q.comment}
                           onChange={e => {
                             if (isReadOnly) return;
@@ -582,9 +593,9 @@ export function AuditChecklistFormatka({ auditId, isReadOnly = false, onObservat
                               handleUpdateStatus(q.questionId, q.status, e.target.value);
                             }
                           }}
-                          className={`w-full px-3 py-2 rounded-xl text-xs outline-none ${
+                          className={`w-full px-3.5 py-2 rounded-xl text-xs font-medium transition-all ${
                             isReadOnly
-                              ? 'pointer-events-none opacity-50 bg-slate-100 dark:bg-slate-800/40 text-slate-400 cursor-not-allowed select-none border border-slate-200 dark:border-slate-800'
+                              ? 'bg-slate-100/90 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 font-semibold cursor-not-allowed placeholder:text-slate-400'
                               : 'bg-white dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-brand-500'
                           }`}
                         />

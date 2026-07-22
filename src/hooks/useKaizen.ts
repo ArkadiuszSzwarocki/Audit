@@ -8,6 +8,8 @@ export interface Kaizen {
   submittedBy: string;
   status: string;
   committeeNote: string | null;
+  pointsAwarded?: number | null;
+  pointsCategory?: string | null;
   areaId: string | null;
   machineId: string | null;
   photoUrl: string | null;
@@ -54,13 +56,31 @@ export function useKaizen() {
     return res.json();
   };
 
-  const updateKaizenStatus = async (id: string, status: string, committeeNote?: string) => {
+  const updateKaizenStatus = async (
+    id: string,
+    status: string,
+    committeeNote?: string,
+    pointsAwarded?: number,
+    pointsCategory?: string
+  ) => {
     const res = await fetch(`/api/kaizen/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status, committeeNote }),
+      body: JSON.stringify({ status, committeeNote, pointsAwarded, pointsCategory }),
     });
-    if (!res.ok) throw new Error('Nie udało się zaktualizować wniosku');
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Nie udało się zaktualizować wniosku');
+    }
+    return res.json();
+  };
+
+  const deleteKaizen = async (id: string) => {
+    const res = await fetch(`/api/kaizen/${id}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Nie udało się usunąć wniosku');
+    setKaizens(prev => prev.filter(k => k.id !== id));
     return res.json();
   };
 
@@ -70,6 +90,7 @@ export function useKaizen() {
     fetchKaizens,
     createKaizen,
     fetchKaizenById,
-    updateKaizenStatus
+    updateKaizenStatus,
+    deleteKaizen,
   };
 }

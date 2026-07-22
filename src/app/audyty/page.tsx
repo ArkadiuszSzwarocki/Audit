@@ -185,7 +185,7 @@ export default function AuditsPage() {
               </button>
               <button
                 onClick={() => setSelectedAuditIds([])}
-                className="px-3 py-2 text-slate-300 hover:text-white text-xs font-semibold underline"
+                className="px-3 py-2 text-slate-300 hover:text-white text-xs font-semibold underline cursor-pointer"
               >
                 Odznacz wszystkie
               </button>
@@ -197,7 +197,7 @@ export default function AuditsPage() {
         <div className="glass-card p-4 space-y-4 border-slate-200 dark:border-slate-800">
           <div className="flex justify-between items-center border-b pb-3 border-slate-100 dark:border-slate-800">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Opcje filtrowania</h2>
-            <button onClick={resetFilters} className="text-xs text-brand-600 hover:text-brand-700 font-semibold underline">
+            <button onClick={resetFilters} className="text-xs text-brand-600 hover:text-brand-700 font-semibold underline cursor-pointer">
               Resetuj filtry
             </button>
           </div>
@@ -266,7 +266,7 @@ export default function AuditsPage() {
               id="selectAll"
               checked={filteredAudits.length > 0 && selectedAuditIds.length === filteredAudits.length}
               onChange={handleSelectAll}
-              className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300"
+              className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 cursor-pointer"
             />
             <label htmlFor="selectAll" className="cursor-pointer font-semibold text-slate-700 dark:text-slate-300">
               Zaznacz wszystkie ({filteredAudits.length})
@@ -276,7 +276,7 @@ export default function AuditsPage() {
         </div>
 
         {loading ? (
-          <div className="text-center p-8">Ładowanie audytów...</div>
+          <div className="text-center p-8 animate-pulse text-slate-400 font-bold">Ładowanie audytów...</div>
         ) : (
           <div className="grid gap-4">
             {filteredAudits.length === 0 ? (
@@ -332,31 +332,35 @@ export default function AuditsPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2.5 ml-8 md:ml-0">
+                  {/* Icon Actions Bar */}
+                  <div className="flex flex-wrap items-center gap-2 shrink-0 ml-8 md:ml-0">
                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      audit.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 
-                      audit.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700' : 
-                      'bg-slate-100 text-slate-700'
+                      audit.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 
+                      audit.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800' : 
+                      'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
                     }`}>
-                      {audit.status === 'COMPLETED' ? 'Zakończony' : audit.status === 'IN_PROGRESS' ? 'W trakcie' : audit.status}
+                      {audit.status === 'COMPLETED' ? '✅ Zakończony' : audit.status === 'IN_PROGRESS' ? '⚙️ W trakcie' : '📝 Draft'}
                     </span>
 
+                    {/* Email Icon Button */}
                     <button
                       onClick={(e) => {
                         e.preventDefault();
                         setEmailModalAudit({ id: audit.id, title: audit.title });
                       }}
-                      className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-                      title="Wyślij e-mail z raportem"
+                      className="p-2 bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                      title="Wyślij e-mail z raportem audytu"
                     >
-                      <span>📧 Email</span>
+                      📧
                     </button>
 
+                    {/* Open Audit Icon Link Button */}
                     <Link 
                       href={`/audyty/${audit.id}`} 
-                      className="px-4 py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-lg shadow-sm transition-all"
+                      className="p-2 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center justify-center cursor-pointer"
+                      title="Otwórz ten audyt"
                     >
-                      Otwórz Audyt
+                      🔍
                     </Link>
                   </div>
                 </div>
