@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FaultReportService } from '@/services/FaultReportService';
+import { createFaultReportSchema } from '@/schemas/faultReportSchema';
+import { ApiResponse } from '@/utils/apiResponse';
 
 const service = new FaultReportService();
 
@@ -12,29 +14,30 @@ export async function GET(req: NextRequest) {
     const reports = await service.getAll({ status, assignedToId });
     return NextResponse.json(reports);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return ApiResponse.handleApiError(error, 'Nie udało się pobrać usterki');
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const validatedData = createFaultReportSchema.parse(body);
 
     const report = await service.create({
-      title: body.title,
-      description: body.description,
-      severity: body.severity,
-      reportedBy: body.reportedBy ?? 'Anonimowy',
+      title: validatedData.title,
+      description: validatedData.description,
+      severity: body.severity ?? validatedData.priority ?? null,
+      reportedBy: validatedData.reportedBy,
       photoUrl: body.photoUrl ?? null,
       notifyEmails: body.notifyEmails ?? null,
       dueDate: body.dueDate ? new Date(body.dueDate) : null,
-      areaId: body.areaId ?? null,
-      machineId: body.machineId ?? null,
+      areaId: validatedData.areaId || null,
+      machineId: validatedData.machineId || null,
       assignedToId: body.assignedToId ?? null,
     });
 
-    return NextResponse.json(report, { status: 201 });
+    return ApiResponse.success(report, 201);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return ApiResponse.handleApiError(error, 'Nie udało się utworzyć zgłoszenia usterki');
   }
 }

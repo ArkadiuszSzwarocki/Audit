@@ -27,8 +27,12 @@ export function PromptEmailModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
-    onConfirm(email.trim());
+    let finalEmail = email.trim();
+    if (finalEmail && !finalEmail.includes('@')) {
+      finalEmail = `${finalEmail}@allspice.pl`;
+    }
+    if (!finalEmail) return;
+    onConfirm(finalEmail);
     onClose();
   };
 
@@ -49,15 +53,31 @@ export function PromptEmailModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-              Adres E-mail Odbiorców *
-            </label>
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Adres E-mail Odbiorców *
+              </label>
+              {email && !email.includes('@') && (
+                <button
+                  type="button"
+                  onClick={() => setEmail(`${email.trim()}@allspice.pl`)}
+                  className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-bold"
+                >
+                  + @allspice.pl
+                </button>
+              )}
+            </div>
             <input
-              type="email"
+              type="text"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="np. kierownik.zmiany@zaklad.pl"
+              onBlur={(e) => {
+                if (email.trim() && !email.includes('@')) {
+                  setEmail(`${email.trim()}@allspice.pl`);
+                }
+              }}
+              placeholder="np. jan.kowalski@allspice.pl"
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>

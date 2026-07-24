@@ -8,6 +8,13 @@ import { printKaizenAnnex1, printKaizenAnnex2, printKaizenAnnex3 } from '@/utils
 
 export default function KaizenRegulaminPage() {
   const router = useRouter();
+  const [isEmbedded, setIsEmbedded] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsEmbedded(window.location.search.includes('embed=true'));
+    }
+  }, []);
 
   const handlePrint = () => {
     window.print();
@@ -18,12 +25,14 @@ export default function KaizenRegulaminPage() {
       {/* Header controls (hidden on print) */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 print:hidden">
         <div className="flex items-center gap-3">
-          <Link
-            href="/kaizen"
-            className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-2xl font-bold text-xs transition-colors"
-          >
-            ← Powrót do Kaizen
-          </Link>
+          {!isEmbedded && (
+            <Link
+              href="/kaizen"
+              className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-2xl font-bold text-xs transition-colors"
+            >
+              ← Powrót do Kaizen
+            </Link>
+          )}
           <div>
             <h1 className="text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
               📜 Regulamin Programu Kaizen
@@ -34,13 +43,14 @@ export default function KaizenRegulaminPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={handlePrint}
             className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+            title="Drukuj pełny regulamin wraz z 3 załącznikami"
           >
-            🖨️ Drukuj Regulamin i Załączniki
+            🖨️ Drukuj Cały Dokument
           </button>
         </div>
       </div>

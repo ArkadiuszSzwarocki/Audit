@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BhpHazardReportService } from '@/services/BhpHazardReportService';
+import { createBhpSchema } from '@/schemas/bhpSchema';
+import { ApiResponse } from '@/utils/apiResponse';
 
 const service = new BhpHazardReportService();
 
@@ -13,16 +15,23 @@ export async function GET(req: NextRequest) {
     const reports = await service.getAll({ assignedToId, status, category });
     return NextResponse.json(reports);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return ApiResponse.handleApiError(error, 'Nie udało się pobrać zgłoszeń BHP');
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const report = await service.create(body);
-    return NextResponse.json(report, { status: 201 });
+    const validatedData = createBhpSchema.parse(body);
+    const report = await service.create({
+      ...body,
+      title: validatedData.title,
+      description: validatedData.description,
+      areaId: validatedData.areaId,
+      reportedBy: validatedData.reportedBy,
+    });
+    return ApiResponse.success(report, 201);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return ApiResponse.handleApiError(error, 'Nie udało się zapisać zgłoszenia BHP');
   }
 }

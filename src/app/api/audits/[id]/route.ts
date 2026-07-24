@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/config/db';
+import { checkIsAdmin } from '@/lib/auth';
 
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
     const audit = await prisma.audit.findUnique({
@@ -25,7 +26,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   }
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
     const body = await request.json();
@@ -39,9 +40,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 }
 
-import { checkIsAdmin } from '@/lib/auth';
-
-export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const isAdmin = await checkIsAdmin();
     if (!isAdmin) {

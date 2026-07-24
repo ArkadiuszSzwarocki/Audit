@@ -12,13 +12,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const pathname = usePathname();
 
-  const isLoginPage = pathname === '/logowanie';
+  const isStandalonePage =
+    pathname === '/logowanie' ||
+    (typeof window !== 'undefined' && window.location.search.includes('embed=true'));
 
-  if (isLoginPage) {
+  if (isStandalonePage) {
     return (
       <ThemeProvider>
         <ToastProvider>
-          <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex items-center justify-center p-4">
+          <div className="min-h-screen bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-2 sm:p-4">
             {children}
           </div>
         </ToastProvider>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/context/ToastContext';
 import { ImageUploadWithCamera } from '@/components/ui/ImageUploadWithCamera';
+import { UserEmailPicker } from '@/components/ui/UserEmailPicker';
 
 interface Area { id: string; name: string; machines: { id: string; name: string }[] }
 interface User { id: string; name: string; email: string | null }
@@ -15,6 +16,7 @@ const CATEGORIES = [
   { value: 'UNSAFE_BEHAVIOR', label: '🚷 Niebezpieczne Zachowanie', desc: 'Praca niezgodnie z instrukcją BHP, omijanie zabezpieczeń' },
   { value: 'FIRE_HAZARD', label: '🔥 Zagrożenie Pożarowe', desc: 'Zastawione drogi ewakuacyjne, gaśnice, iskry' },
   { value: 'PPE', label: '🥽 Brak lub Uszkodzenie ŚOI', desc: 'Brak okularów, rękawic, obuwia ochronnego' },
+  { value: 'OTHER', label: '❓ Inne Zagrożenie BHP / Inna Sytuacja', desc: 'Pozostałe zagrożenia i incydenty BHP niewymienione powyżej' },
 ];
 
 const SEVERITIES = [
@@ -304,6 +306,15 @@ export default function NoweZgloszenieBhpPage() {
             ℹ️ Termin eliminacji zagrożenia zostanie określony przez przypisanego inspektora BHP.
           </p>
         </div>
+
+        <UserEmailPicker
+          value={notifyEmails}
+          onChange={setNotifyEmails}
+          users={users}
+          selectedAreaId={areaId}
+          moduleType="BHP"
+          label="📧 Powiadomienie e-mailem (Wybór z bazy lub własny adres)"
+        />
 
         <ImageUploadWithCamera
           label="Zdjęcie zagrożenia BHP / dowód"

@@ -1,7 +1,9 @@
 import { cookies } from 'next/headers';
 import * as jose from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'super-secret-key-for-audit-app-12345');
+export const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || 'audit-app-secure-jwt-secret-key-2026-firmowa-siec'
+);
 
 export interface AuthSession {
   id: string;
@@ -12,13 +14,30 @@ export interface AuthSession {
   isAdmin: boolean;
 }
 
+export async function verifyJwtToken(token: string): Promise<jose.JWTPayload | null> {
+  try {
+    const { payload } = await jose.jwtVerify(token, JWT_SECRET);
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+export async function signJwtToken(payload: Record<string, any>, expiresIn: string = '7d'): Promise<string> {
+  return new jose.SignJWT(payload)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime(expiresIn)
+    .sign(JWT_SECRET);
+}
+
 export async function getAuthSession(): Promise<AuthSession | null> {
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get('session_token')?.value;
 
   if (sessionToken) {
-    try {
-      const { payload } = await jose.jwtVerify(sessionToken, JWT_SECRET);
+    const payload = await verifyJwtToken(sessionToken);
+    if (payload) {
       const roleStr = String(payload.role || '').toUpperCase();
       const isZarzad = roleStr === 'ZARZAD' || roleStr === 'ZARZĄD' || roleStr === 'BOARD';
       const isAdmin = isZarzad || roleStr === 'ADMIN' || roleStr === 'ADMINISTRATOR';
@@ -31,8 +50,6 @@ export async function getAuthSession(): Promise<AuthSession | null> {
         isZarzad,
         isAdmin,
       };
-    } catch {
-      // Token invalid or expired
     }
   }
 

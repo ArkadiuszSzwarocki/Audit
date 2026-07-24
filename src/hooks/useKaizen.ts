@@ -46,8 +46,11 @@ export function useKaizen() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Nie udało się zgłosić pomysłu');
-    return res.json();
+    const resJson = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(resJson.error || resJson.message || 'Nie udało się zgłosić pomysłu');
+    }
+    return resJson.data || resJson;
   };
 
   const fetchKaizenById = async (id: string) => {

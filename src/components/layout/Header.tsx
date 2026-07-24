@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { ThemeSelector } from '@/components/ui/ThemeSelector';
@@ -27,11 +28,16 @@ interface UserProfileStats {
 export default function Header({ onOpenMobileMenu }: HeaderProps) {
   const { user, isAdmin, logout } = useAuth();
   const { permission, requestPermission } = useDesktopNotifications();
+  const [mounted, setMounted] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isRanksModalOpen, setIsRanksModalOpen] = useState(false);
   const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
   const [payoutTab, setPayoutTab] = useState<'NEW_PAYOUT' | 'HISTORY'>('NEW_PAYOUT');
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [stats, setStats] = useState<UserProfileStats>({
     assignedTasksCount: 0,
@@ -74,7 +80,7 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-20 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 print:hidden shadow-sm px-4 sm:px-6 lg:px-8">
+      <header className={`sticky top-0 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 print:hidden shadow-sm px-4 sm:px-6 lg:px-8 transition-all ${isUserMenuOpen ? 'z-50' : 'z-20'}`}>
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-3">
             {/* Mobile hamburger button */}
@@ -144,15 +150,18 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
                   </svg>
                 </button>
 
-                {/* Dropdown Menu Popup */}
-                {isUserMenuOpen && (
+                {/* Dropdown Menu Popup (Portal to document.body for full page backdrop & correct layering) */}
+                {isUserMenuOpen && mounted && createPortal(
                   <>
+                    {/* Backdrop Overlay ("Tło duszka na CAŁEJ STRONIE łącznie z menu bocznym") */}
                     <div
-                      className="fixed inset-0 z-30"
+                      className="fixed inset-0 bg-slate-950/65 backdrop-blur-xs z-[9999] transition-opacity animate-in fade-in duration-200 cursor-pointer"
                       onClick={() => setIsUserMenuOpen(false)}
+                      onTouchEnd={() => setIsUserMenuOpen(false)}
                     />
 
-                    <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-40 p-3 space-y-3 animate-in fade-in zoom-in-95 duration-150">
+                    {/* Menu Card floats ON TOP of backdrop overlay at top-16 right-4 */}
+                    <div className="fixed top-16 right-4 sm:right-6 lg:right-8 w-72 max-h-[calc(100vh-80px)] overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-[10000] p-3 space-y-3 animate-in fade-in zoom-in-95 duration-150">
                       {/* Header User Card */}
                       <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-2">
                         <div className="flex items-center gap-3">
@@ -231,6 +240,16 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
                       {/* Action Links */}
                       <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-slate-800">
                         <Link
+                          href="/struktura/szkolenia"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-900 dark:hover:text-amber-300 flex items-center justify-between transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            <span>🦺</span> Moje Szkolenia & Badania
+                          </span>
+                        </Link>
+
+                        <Link
                           href="/zadania?assigned=MY_TASKS"
                           onClick={() => setIsUserMenuOpen(false)}
                           className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between transition-colors"
@@ -258,17 +277,7 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
                           </span>
                         </Link>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsUserMenuOpen(false);
-                            setPayoutTab('NEW_PAYOUT');
-                            setIsPayoutModalOpen(true);
-                          }}
-                          className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-amber-900 dark:text-amber-300 bg-amber-50/80 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 border border-amber-200/80 dark:border-amber-800/80 flex items-center gap-2 transition-colors cursor-pointer"
-                        >
-                          <span>🎁</span> Wniosek o Wypłatę Nagrody
-                        </button>
+
 
                         <button
                           type="button"
@@ -332,7 +341,8 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
                         </button>
                       </div>
                     </div>
-                  </>
+                  </>,
+                  document.body
                 )}
               </div>
             ) : (

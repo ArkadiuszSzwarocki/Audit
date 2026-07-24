@@ -2,9 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { prisma } from '@/config/db';
 import bcrypt from 'bcryptjs';
-import * as jose from 'jose';
-
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'super-secret-key-for-audit-app-12345');
+import { signJwtToken } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
@@ -38,28 +36,25 @@ export async function POST(request: Request) {
 
     if (passwordMatch) {
       // Create JWT session
-      const alg = 'HS256';
-      const jwt = await new jose.SignJWT({ id: user.id, name: user.name, login: user.login, role: user.role })
-        .setProtectedHeader({ alg })
-        .setIssuedAt()
-        .setExpirationTime('7d')
-        .sign(JWT_SECRET);
+      const jwt = await signJwtToken(
+        { id: user.id, name: user.name, login: user.login, role: user.role },
+        '7d'
+      );
 
       const cookieStore = await cookies();
-      cookieStore.set('session_token', jwt, {
+      const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: 'lax' as const,
         path: '/',
         maxAge: 60 * 60 * 24 * 7 // 1 week
-      });
-      // Zachowaj stare ciasteczko dla kompatybilności na wypadek gdyby było używane w Navbarze bezpośrednio
+      };
+
+      cookieStore.set('session_token', jwt, cookieOptions);
+
+      // Zachowaj stare ciasteczko dla kompatybilności
       if (user.role === 'ADMIN') {
-        cookieStore.set('admin_session', 'true', {
-          httpOnly: true,
-          path: '/',
-          maxAge: 60 * 60 * 24 * 7 // 1 week
-        });
+        cookieStore.set('admin_session', 'true', cookieOptions);
       } else {
         cookieStore.delete('admin_session');
       }

@@ -1,25 +1,21 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import * as jose from 'jose';
 import { prisma } from '@/config/db';
-
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'super-secret-key-for-audit-app-12345');
+import { verifyJwtToken } from '@/lib/auth';
 
 async function getSessionUser() {
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get('session_token')?.value;
 
   if (sessionToken) {
-    try {
-      const { payload } = await jose.jwtVerify(sessionToken, JWT_SECRET);
+    const payload = await verifyJwtToken(sessionToken);
+    if (payload) {
       return {
         id: payload.id as string,
         name: payload.name as string,
         login: (payload.login as string) || (payload.name as string) || 'admin',
         role: (payload.role as string) || 'OPERATOR',
       };
-    } catch {
-      return null;
     }
   }
   return null;

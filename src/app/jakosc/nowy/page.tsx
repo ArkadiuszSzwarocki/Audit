@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/context/ToastContext';
 import { ImageUploadWithCamera } from '@/components/ui/ImageUploadWithCamera';
+import { UserEmailPicker } from '@/components/ui/UserEmailPicker';
 
 interface Area { id: string; name: string; machines: { id: string; name: string }[] }
 interface User { id: string; name: string; email: string | null }
@@ -15,6 +16,7 @@ const CATEGORIES = [
   { value: 'PROCESS_DEVIATION', label: '⚙️ Odchylenie Procesu Technologicznego', desc: 'Przekroczenie temperatur, ciśnienia lub czasu mieszania' },
   { value: 'PACKAGING', label: '🏷️ Błąd Etykiety / Opakowania', desc: 'Błędny kod kreskowy, data ważności lub oznaczenie alergenów' },
   { value: 'CUSTOMER_COMPLAINT', label: '🗣️ Reklamacja Klienta / Powiadomienie Zewnętrzne', desc: 'Zgłoszenie wady przez klienta lub kontrolę jakości' },
+  { value: 'OTHER', label: '❓ Inne Niezgodności / Zgłoszenie Niestandardowe', desc: 'Pozostałe odchylenia jakościowe i proceduralne niewymienione powyżej' },
 ];
 
 const SEVERITIES = [
@@ -334,6 +336,15 @@ export default function NoweZgloszenieJakosciowePage() {
             ℹ️ Termin wykonania akcji korygującej CAPA zostanie określony przez przypisanego inżyniera jakości.
           </p>
         </div>
+
+        <UserEmailPicker
+          value={notifyEmails}
+          onChange={setNotifyEmails}
+          users={users}
+          selectedAreaId={areaId}
+          moduleType="QUALITY"
+          label="📧 Powiadomienie e-mailem (Wybór z bazy lub własny adres)"
+        />
 
         <ImageUploadWithCamera
           label="Zdjęcie wady / próby laboratoryjnej"

@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/config/db';
 import { getAuthSession } from '@/lib/auth';
 
-export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<any> }) {
   const session = await getAuthSession();
   if (!session || !session.isAdmin) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 });
@@ -45,7 +45,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<any> }) {
   const session = await getAuthSession();
   if (!session || !session.isAdmin) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 });

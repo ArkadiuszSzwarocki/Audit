@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/config/db';
 import { EmailService, EmailAttachment } from '@/services/EmailService';
 import { buildAuditReportEmailHtml } from '@/utils/auditReportEmailBuilder';
@@ -8,7 +8,7 @@ import fs from 'fs';
 const emailService = new EmailService();
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {

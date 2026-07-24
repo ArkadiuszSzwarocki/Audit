@@ -10,7 +10,25 @@ export async function GET() {
   }
 
   const users = await prisma.user.findMany({
-    select: { id: true, login: true, name: true, email: true, role: true, bhpTrainingDueDate: true, dismissedBhpNoticeThreshold: true, createdAt: true },
+    select: {
+      id: true,
+      login: true,
+      name: true,
+      email: true,
+      role: true,
+      bhpTrainingDueDate: true,
+      dismissedBhpNoticeThreshold: true,
+      responsibleAreaId: true,
+      responsibleArea: {
+        select: { id: true, name: true }
+      },
+      notifyBhp: true,
+      notifyQuality: true,
+      notifyFaults: true,
+      notifyKaizen: true,
+      notifyAudits: true,
+      createdAt: true
+    },
     orderBy: { name: 'asc' }
   });
   return NextResponse.json(users);
@@ -23,7 +41,20 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { login, name, email, password, role, bhpTrainingDueDate } = await request.json();
+    const {
+      login,
+      name,
+      email,
+      password,
+      role,
+      bhpTrainingDueDate,
+      responsibleAreaId,
+      notifyBhp,
+      notifyQuality,
+      notifyFaults,
+      notifyKaizen,
+      notifyAudits,
+    } = await request.json();
     
     if (!login || !name || !password) {
       return NextResponse.json({ error: 'Wypełnij wszystkie wymagane pola' }, { status: 400 });
@@ -50,8 +81,27 @@ export async function POST(request: Request) {
         passwordHash,
         role: role || 'OPERATOR',
         bhpTrainingDueDate: bhpTrainingDueDate ? new Date(bhpTrainingDueDate) : null,
+        responsibleAreaId: responsibleAreaId || null,
+        notifyBhp: Boolean(notifyBhp),
+        notifyQuality: Boolean(notifyQuality),
+        notifyFaults: Boolean(notifyFaults),
+        notifyKaizen: Boolean(notifyKaizen),
+        notifyAudits: Boolean(notifyAudits),
       },
-      select: { id: true, login: true, name: true, email: true, role: true, bhpTrainingDueDate: true }
+      select: {
+        id: true,
+        login: true,
+        name: true,
+        email: true,
+        role: true,
+        bhpTrainingDueDate: true,
+        responsibleAreaId: true,
+        notifyBhp: true,
+        notifyQuality: true,
+        notifyFaults: true,
+        notifyKaizen: true,
+        notifyAudits: true
+      }
     });
 
     return NextResponse.json(newUser, { status: 201 });

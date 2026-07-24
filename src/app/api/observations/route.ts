@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ObservationService } from '@/services/ObservationService';
+import { createObservationSchema } from '@/schemas/observationSchema';
+import { ApiResponse } from '@/utils/apiResponse';
 
 const observationService = new ObservationService();
 
@@ -16,31 +18,31 @@ export async function GET(request: Request) {
     } else if (auditId) {
       observations = await observationService.getObservationsForAudit(auditId);
     } else {
-      return NextResponse.json({ error: 'Brak wymaganych parametrów' }, { status: 400 });
+      return ApiResponse.error('Brak wymaganych parametrów (auditId lub status)', 400);
     }
     
     return NextResponse.json(observations);
   } catch (error: any) {
-    console.error('API Error in GET /api/observations:', error);
-    return NextResponse.json({ error: error?.message || 'Nie udało się pobrać spostrzeżeń' }, { status: 500 });
+    return ApiResponse.handleApiError(error, 'Nie udało się pobrać spostrzeżeń');
   }
 }
 
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    const service = new ObservationService();
-    const obs = await service.addObservation({
-      auditId: data.auditId,
-      description: data.description,
-      photoUrl: data.photoUrl,
+    const validatedData = createObservationSchema.parse(data);
+
+    const obs = await observationService.addObservation({
+      auditId: validatedData.auditId || data.auditId,
+      description: validatedData.description,
+      photoUrl: validatedData.photoUrl || data.photoUrl,
       aiSuggestion: data.aiSuggestion,
       severity: data.severity,
       dueDate: data.dueDate ? new Date(data.dueDate) : undefined
     });
-    return NextResponse.json(obs, { status: 201 });
+    return ApiResponse.success(obs, 201);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return ApiResponse.handleApiError(error, 'Nie udało się dodać spostrzeżenia');
   }
 }
 
@@ -50,13 +52,13 @@ export async function PATCH(request: Request) {
     const { id, fixedBy, fixPhotoUrl, operatorComment } = body;
     
     if (!id || !fixedBy) {
-      return NextResponse.json({ error: 'Brak ID spostrzeżenia lub podpisu operatora' }, { status: 400 });
+      return ApiResponse.error('Brak ID spostrzeżenia lub podpisu operatora', 400);
     }
     
     const fixedObs = await observationService.fixObservation(id, { fixedBy, fixPhotoUrl, operatorComment });
-    return NextResponse.json(fixedObs, { status: 200 });
+    return ApiResponse.success(fixedObs, 200);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return ApiResponse.handleApiError(error, 'Nie udało się zaktualizować spostrzeżenia');
   }
 }
 
@@ -66,12 +68,12 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id');
     
     if (!id) {
-      return NextResponse.json({ error: 'Brak ID spostrzeżenia' }, { status: 400 });
+      return ApiResponse.error('Brak ID spostrzeżenia do usunięcia', 400);
     }
     
     const deletedObs = await observationService.deleteObservation(id);
-    return NextResponse.json(deletedObs, { status: 200 });
+    return ApiResponse.success(deletedObs, 200);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return ApiResponse.handleApiError(error, 'Nie udało się usunąć spostrzeżenia');
   }
 }

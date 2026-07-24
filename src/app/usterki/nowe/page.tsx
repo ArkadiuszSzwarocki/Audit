@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/context/ToastContext';
 import { downloadFaultReportEml } from '@/utils/faultReportEmailBuilder';
 import { ImageUploadWithCamera } from '@/components/ui/ImageUploadWithCamera';
+import { UserEmailPicker } from '@/components/ui/UserEmailPicker';
 
 interface Area { id: string; name: string; machines: { id: string; name: string }[] }
 interface User { id: string; name: string; email: string | null }
@@ -323,58 +324,20 @@ export default function NowaUsterkaPage() {
           onChange={url => setPhotoUrl(url)}
         />
 
-        {/* Notify Emails */}
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-            📧 Powiadom e-mailem (oddziel przecinkami)
-          </label>
-          <input
-            type="text"
-            placeholder="np. kierownik@zaklad.pl, serwis@zaklad.pl"
-            value={notifyEmails}
-            onChange={e => setNotifyEmails(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
-          />
-          {/* Quick-select registered user emails */}
-          {users.some(u => u.email) && (
-            <div className="mt-2 space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 block">Szybkie dodawanie z bazy pracowników:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {users.filter(u => u.email).map(u => {
-                  const isSelected = notifyEmails.includes(u.email!);
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => {
-                        setNotifyEmails(prev => {
-                          const list = prev.split(',').map(e => e.trim()).filter(Boolean);
-                          if (list.includes(u.email!)) {
-                            return list.filter(e => e !== u.email!).join(', ');
-                          }
-                          return [...list, u.email!].join(', ');
-                        });
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
-                        isSelected
-                          ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-brand-400'
-                      }`}
-                    >
-                      {isSelected ? '✓ ' : '+ '} {u.name} ({u.email})
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+        <UserEmailPicker
+          value={notifyEmails}
+          onChange={setNotifyEmails}
+          users={users}
+          selectedAreaId={areaId}
+          moduleType="FAULTS"
+          label="📧 Powiadomienie e-mailem (Wybór z bazy lub własny adres)"
+        />
 
-          {notifyEmails.trim() && (
-            <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 font-medium">
-              ✅ Po zapisaniu zostanie automatycznie pobrany plik .eml — otwórz go w Outlooku i wyślij.
-            </p>
-          )}
-        </div>
+        {notifyEmails.trim() && (
+          <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 font-medium">
+            ✅ Po zapisaniu zostanie automatycznie pobrany plik .eml — otwórz go w Outlooku i wyślij.
+          </p>
+        )}
 
         {/* Submit */}
         <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">

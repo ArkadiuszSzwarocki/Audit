@@ -5,6 +5,7 @@ import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/hooks/useAuth';
 import { calculateIfsScore } from '@/utils/ifsScoring';
 import { AuditQuestionKaizenModal } from '@/components/ui/AuditQuestionKaizenModal';
+import { compressImage } from '@/utils/imageCompressor';
 
 interface ChecklistItem {
   questionId: string;
@@ -201,9 +202,10 @@ export function AuditChecklistFormatka({ auditId, isReadOnly = false, onObservat
 
   const handleFileUpload = async (questionId: string, file: File) => {
     setUploadingQuestionId(questionId);
-    const formData = new FormData();
-    formData.append('file', file);
     try {
+      const compressed = await compressImage(file);
+      const formData = new FormData();
+      formData.append('file', compressed);
       const res = await fetch('/api/upload', { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { AuditService } from '@/services/AuditService';
+import { createAuditSchema } from '@/schemas/auditSchema';
+import { ApiResponse } from '@/utils/apiResponse';
 
 const auditService = new AuditService();
 
@@ -8,21 +10,23 @@ export async function GET() {
     const audits = await auditService.getAllAudits();
     return NextResponse.json(audits);
   } catch (error) {
-    return NextResponse.json({ error: 'Nie udało się pobrać audytów' }, { status: 500 });
+    return ApiResponse.handleApiError(error, 'Nie udało się pobrać audytów');
   }
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const validatedData = createAuditSchema.parse(body);
+
     const audit = await auditService.createAudit({
-      title: body.title,
-      areaId: body.areaId,
-      machineId: body.machineId,
-      auditTypeId: body.auditTypeId
+      title: validatedData.title,
+      areaId: validatedData.areaId,
+      machineId: validatedData.machineId || undefined,
+      auditTypeId: validatedData.auditTypeId
     });
-    return NextResponse.json(audit, { status: 201 });
+    return ApiResponse.success(audit, 201);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return ApiResponse.handleApiError(error, 'Nie udało się utworzyć nowego audytu');
   }
 }

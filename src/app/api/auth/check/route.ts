@@ -1,18 +1,16 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import * as jose from 'jose';
-
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'super-secret-key-for-audit-app-12345');
+import { verifyJwtToken } from '@/lib/auth';
 
 export async function GET() {
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get('session_token')?.value;
 
   if (sessionToken) {
-    try {
-      const { payload } = await jose.jwtVerify(sessionToken, JWT_SECRET);
+    const payload = await verifyJwtToken(sessionToken);
+    if (payload) {
       return NextResponse.json({ 
-        isAdmin: payload.role === 'ADMIN',
+        isAdmin: payload.role === 'ADMIN' || payload.role === 'ZARZAD',
         user: { 
           id: payload.id as string, 
           name: payload.name as string, 
@@ -20,8 +18,6 @@ export async function GET() {
           role: payload.role as string 
         }
       });
-    } catch (e) {
-      // Invalid token
     }
   }
 

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/config/db';
+import { createKaizenSchema } from '@/schemas/kaizenSchema';
+import { ApiResponse } from '@/utils/apiResponse';
 
 export async function GET() {
   try {
@@ -12,28 +14,28 @@ export async function GET() {
     });
     return NextResponse.json(kaizens);
   } catch (error) {
-    console.error("GET /api/kaizen Error:", error);
-    return NextResponse.json({ error: 'Błąd serwera' }, { status: 500 });
+    return ApiResponse.handleApiError(error, 'Nie udało się pobrać pomysłów Kaizen');
   }
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const validatedData = createKaizenSchema.parse(body);
+
     const kaizen = await prisma.kaizen.create({
       data: {
-        title: body.title,
-        description: body.description,
-        benefits: body.benefits,
-        submittedBy: body.submittedBy,
-        areaId: body.areaId,
-        machineId: body.machineId,
-        photoUrl: body.photoUrl,
+        title: validatedData.title,
+        description: validatedData.description,
+        benefits: validatedData.expectedBenefit || body.benefits || null,
+        submittedBy: validatedData.submittedBy,
+        areaId: validatedData.areaId || null,
+        machineId: validatedData.machineId || null,
+        photoUrl: validatedData.photoUrl || null,
       }
     });
-    return NextResponse.json(kaizen);
+    return ApiResponse.success(kaizen, 201);
   } catch (error) {
-    console.error("POST /api/kaizen Error:", error);
-    return NextResponse.json({ error: 'Nie udało się zapisać pomysłu' }, { status: 500 });
+    return ApiResponse.handleApiError(error, 'Nie udało się zapisać pomysłu Kaizen');
   }
 }

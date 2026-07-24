@@ -20,6 +20,7 @@ model Area {
   faultReports FaultReport[]
   bhpHazardReports BhpHazardReport[]
   qualityReports   QualityReport[]
+  responsibleUsers User[] @relation("UserResponsibleArea")
 }
 
 model Machine {
@@ -36,6 +37,8 @@ model Machine {
   faultReports FaultReport[]
   bhpHazardReports BhpHazardReport[]
   qualityReports   QualityReport[]
+
+  @@index([areaId])
 }
 
 model Audit {
@@ -53,6 +56,11 @@ model Audit {
   auditType    AuditType?    @relation(fields: [auditTypeId], references: [id], onDelete: SetNull)
   observations Observation[]
   answers      AuditQuestionAnswer[]
+
+  @@index([status])
+  @@index([areaId])
+  @@index([auditTypeId])
+  @@index([createdAt])
 }
 
 model AuditType {
@@ -91,6 +99,11 @@ model Observation {
   updatedAt    DateTime @updatedAt
   
   audit        Audit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([assignedToId])
+  @@index([isFixed])
+  @@index([createdAt])
 }
 
 model ObservationExtension {
@@ -102,6 +115,8 @@ model ObservationExtension {
   reason          String      // Powód przedłużenia
   requestedBy     String      // Kto wnioskował
   createdAt       DateTime    @default(now())
+
+  @@index([observationId])
 }
 
 model Document {
@@ -119,6 +134,9 @@ model Document {
   
   area         Area?    @relation(fields: [areaId], references: [id], onDelete: Cascade)
   machine      Machine? @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@index([category])
+  @@index([areaId])
 }
 
 model Kaizen {
@@ -139,11 +157,19 @@ model Kaizen {
 
   areaId        String?
   machineId     String?
+  assignedToId  String?
   area          Area?    @relation(fields: [areaId], references: [id], onDelete: Cascade)
   machine       Machine? @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  assignedTo    User?    @relation("KaizenAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([areaId])
+  @@index([submittedBy])
+  @@index([isPaidOut])
+  @@index([createdAt])
 }
 
 model KaizenPayoutRequest {
@@ -163,6 +189,9 @@ model KaizenPayoutRequest {
   approvedAt    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+  @@index([userLogin])
 }
 
 model Role {
@@ -197,16 +226,32 @@ model User {
   roleId       String?
   userRole     Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
 
+  // Przypisanie odpowiedzialności za Rejon Zakładu
+  responsibleAreaId String?
+  responsibleArea   Area?   @relation("UserResponsibleArea", fields: [responsibleAreaId], references: [id], onDelete: SetNull)
+
+  // Moduły, za które użytkownik otrzymuje powiadomienia i jest wskazywany jako odpowiedzialny
+  notifyBhp     Boolean @default(false)
+  notifyQuality Boolean @default(false)
+  notifyFaults  Boolean @default(false)
+  notifyKaizen  Boolean @default(false)
+  notifyAudits  Boolean @default(false)
+
   assignedTasks            Observation[]
   assignedFaultReports     FaultReport[]
   assignedBhpHazardReports BhpHazardReport[]
   assignedQualityReports   QualityReport[]
+  assignedKaizens          Kaizen[]
+  trainings                UserTraining[]
 
   bhpTrainingDueDate          DateTime? // Data ważności szkolenia BHP pracownika
   dismissedBhpNoticeThreshold Int?      // Ostatnio odrzucony progiem powiadomienia (np. 30, 20, 15, 10, 5, 4, 3, 2, 1, 0)
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  @@index([role])
+  @@index([responsibleAreaId])
 }
 
 model ObservationSeverity {
@@ -244,6 +289,12 @@ model FaultReport {
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  @@index([status])
+  @@index([areaId])
+  @@index([machineId])
+  @@index([assignedToId])
+  @@index([createdAt])
 }
 
 model AuditTypeQuestion {
@@ -259,6 +310,8 @@ model AuditTypeQuestion {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
   answers        AuditQuestionAnswer[]
+
+  @@index([auditTypeId])
 }
 
 model AuditQuestionAnswer {
@@ -275,6 +328,8 @@ model AuditQuestionAnswer {
   updatedAt    DateTime          @updatedAt
 
   @@unique([auditId, questionId])
+  @@index([auditId])
+  @@index([status])
 }
 
 model AccessLog {
@@ -343,6 +398,11 @@ model BhpHazardReport {
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  @@index([status])
+  @@index([areaId])
+  @@index([assignedToId])
+  @@index([createdAt])
 }
 
 model QualityReport {
@@ -373,4 +433,35 @@ model QualityReport {
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  @@index([status])
+  @@index([areaId])
+  @@index([assignedToId])
+  @@index([createdAt])
+}
+
+model UserTrainingType {
+  id          String         @id @default(uuid())
+  name        String         @unique
+  description String?
+  isDefault   Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  trainings   UserTraining[]
+}
+
+model UserTraining {
+  id             String           @id @default(uuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trainingTypeId String
+  trainingType   UserTrainingType @relation(fields: [trainingTypeId], references: [id], onDelete: Cascade)
+  dueDate        DateTime?
+  notes          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([userId, trainingTypeId])
+  @@index([userId])
+  @@index([dueDate])
 }

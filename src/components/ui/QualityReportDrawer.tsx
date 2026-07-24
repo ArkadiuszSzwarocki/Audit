@@ -15,6 +15,7 @@ export const QUALITY_CATEGORY_LABELS: Record<string, { label: string; icon: stri
   PROCESS_DEVIATION: { label: 'Odchylenie Procesowe', icon: '⚙️' },
   PACKAGING: { label: 'Wada Opakowania', icon: '🏷️' },
   CUSTOMER_COMPLAINT: { label: 'Reklamacja Klienta', icon: '🗣️' },
+  OTHER: { label: 'Inne Niezgodności / Niestandardowa', icon: '❓' },
 };
 
 export const QUALITY_SEVERITY_LABELS: Record<string, { label: string; cls: string }> = {

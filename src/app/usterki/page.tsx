@@ -202,12 +202,6 @@ export default function UsterkiPage() {
           >
             👥 Zapoznania z Rejestrem
           </button>
-          <button
-            onClick={() => fetchReports(undefined, false)}
-            className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-xl text-sm font-bold transition-colors cursor-pointer"
-          >
-            ↻ Odśwież
-          </button>
           <Link
             href="/usterki/nowe"
             className="px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-2"

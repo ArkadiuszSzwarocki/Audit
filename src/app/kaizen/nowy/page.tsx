@@ -8,6 +8,7 @@ import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/hooks/useAuth';
 import { downloadKaizenEml } from '@/utils/kaizenEmailBuilder';
 import { ImageUploadWithCamera } from '@/components/ui/ImageUploadWithCamera';
+import { UserEmailPicker } from '@/components/ui/UserEmailPicker';
 
 function NewKaizenForm() {
   const router = useRouter();
@@ -73,15 +74,25 @@ function NewKaizenForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !description || !submittedBy) return;
+    const finalSubmittedBy = submittedBy.trim() || user?.name || user?.login || 'Pracownik Zakładu';
+
+    if (!title.trim()) {
+      showToast('Wpisz tytuł pomysłu Kaizen (minimum 3 znaki)', 'error');
+      return;
+    }
+
+    if (!description.trim()) {
+      showToast('Wpisz opis ulepszenia (minimum 5 znaków)', 'error');
+      return;
+    }
     
     setIsSubmitting(true);
     try {
       const created = await createKaizen({
-        title,
-        description,
-        benefits,
-        submittedBy,
+        title: title.trim(),
+        description: description.trim(),
+        benefits: benefits.trim(),
+        submittedBy: finalSubmittedBy,
         areaId: areaId || undefined,
         machineId: machineId || undefined,
         photoUrl: photoUrl || undefined,
@@ -172,57 +183,20 @@ function NewKaizenForm() {
           </div>
         </div>
 
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-            📧 Powiadom e-mailem (oddziel przecinkami, np. komisja kaizen, kierownik)
-          </label>
-          <input
-            type="text"
-            placeholder="np. komisja.kaizen@zaklad.pl, kierownik@zaklad.pl"
-            value={notifyEmails}
-            onChange={e => setNotifyEmails(e.target.value)}
-            className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
-          />
-          {/* Quick-select registered user emails */}
-          {users.some(u => u.email) && (
-            <div className="mt-2 space-y-1">
-              <span className="text-[11px] font-bold text-slate-500 block">Szybkie dodawanie z bazy pracowników:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {users.filter(u => u.email).map(u => {
-                  const isSelected = notifyEmails.includes(u.email!);
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => {
-                        setNotifyEmails(prev => {
-                          const list = prev.split(',').map(e => e.trim()).filter(Boolean);
-                          if (list.includes(u.email!)) {
-                            return list.filter(e => e !== u.email!).join(', ');
-                          }
-                          return [...list, u.email!].join(', ');
-                        });
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
-                        isSelected
-                          ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-brand-400'
-                      }`}
-                    >
-                      {isSelected ? '✓ ' : '+ '} {u.name} ({u.email})
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+        <UserEmailPicker
+          value={notifyEmails}
+          onChange={setNotifyEmails}
+          users={users}
+          selectedAreaId={areaId}
+          moduleType="KAIZEN"
+          label="📧 Powiadomienie e-mailem (Wybór z bazy lub własny adres)"
+        />
 
-          {notifyEmails.trim() && (
-            <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 font-medium">
-              💡 Po zgłoszeniu zostanie automatycznie pobrany plik .eml z powiadomieniem Kaizen do wysłania w Outlooku.
-            </p>
-          )}
-        </div>
+        {notifyEmails.trim() && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 font-medium">
+            💡 Po zgłoszeniu zostanie automatycznie przygotowane powiadomienie E-mail (.eml) gotowe do wysłania.
+          </p>
+        )}
 
         <button 
           type="submit" 

@@ -118,34 +118,12 @@ export default function KaizenListPage() {
           >
             👥 Zapoznania z Rejestrem
           </button>
-          <button
-            onClick={() => fetchKaizens(false)}
-            className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-xl text-sm font-bold transition-colors cursor-pointer"
-          >
-            ↻ Odśwież
-          </button>
           <Link
-            href="/kaizen/regulamin"
+            href="/dokumentacja"
             className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl font-bold text-sm shadow-xs transition-all flex items-center gap-2"
           >
-            📜 Regulamin Programu Kaizen
+            📜 Regulamin Kaizen (Dokumentacja)
           </Link>
-          {(isAdmin || (user?.role && !['OPERATOR', 'AUDYTOR', 'AUDITOR'].includes(user.role.toUpperCase()))) && (
-            <Link
-              href="/kaizen/wyplaty"
-              className="px-3.5 py-2 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 text-emerald-950 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 rounded-xl font-bold text-sm shadow-xs transition-all flex items-center gap-2"
-              title="Przejdź do panelu zatwierdzania wypłat premii i nagród Kaizen przez Komisję / HR"
-            >
-              💳 Wypłaty Nagród (Komisja)
-            </Link>
-          )}
-          <button
-            type="button"
-            onClick={() => setIsPayoutModalOpen(true)}
-            className="px-3.5 py-2 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-800 rounded-xl font-bold text-sm shadow-xs transition-all flex items-center gap-2 cursor-pointer"
-          >
-            🎁 Wniosek o Wypłatę Nagrody
-          </button>
           <Link
             href="/kaizen/nowy"
             className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-2"

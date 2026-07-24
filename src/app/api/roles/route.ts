@@ -68,8 +68,8 @@ export async function GET() {
           canManageKaizen: false,
         },
         {
-          name: 'Audytor',
-          description: 'Przeprowadzanie i zamykanie audytów',
+          name: 'Kontrola Jakości',
+          description: 'Przeprowadzanie audytów oraz kontrola jakości na produkcji',
           isSystem: false,
           canCreateAudit: true,
           canCompleteAudit: true,

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { ThemeSelector } from '@/components/ui/ThemeSelector';
 
 interface SidebarProps {
   isMobileOpen: boolean;
@@ -15,7 +14,26 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
   const { isAdmin, user, logout } = useAuth();
   const pathname = usePathname();
 
-  const [menuCounts, setMenuCounts] = useState<{ pendingKaizens: number; pendingTasks: number; openFaultReports: number; openBhpHazards: number; openQualityReports: number }>({
+  // Collapsible section state (default: both open)
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    NAV: true,
+    CONFIG: true,
+  });
+
+  const toggleSection = (key: string) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const [menuCounts, setMenuCounts] = useState<{
+    pendingKaizens: number;
+    pendingTasks: number;
+    openFaultReports: number;
+    openBhpHazards: number;
+    openQualityReports: number;
+  }>({
     pendingKaizens: 0,
     pendingTasks: 0,
     openFaultReports: 0,
@@ -34,7 +52,7 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
           }
         }
       } catch {
-        // Silently ignore temporary network polling errors
+        // Silently ignore network polling errors
       }
     };
 
@@ -43,67 +61,14 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
     return () => clearInterval(interval);
   }, [pathname]);
 
-  const navItems = [
-    {
-      name: 'Informator',
-      href: '/informator',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-    },
+  // 1. MAIN NAVIGATION - STRICT ALPHABETICAL ORDER (A-Z)
+  const mainNavItems = [
     {
       name: 'Audyty',
       href: '/audyty',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 022 2h2a2 2 0 022-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-        </svg>
-      ),
-    },
-    {
-      name: 'Zadania Produkcji',
-      href: '/zadania',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-    },
-    {
-      name: 'Zgłoszenia Usterek',
-      href: '/usterki',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-      ),
-    },
-    {
-      name: 'Zagrożenia BHP',
-      href: '/bhp',
-      icon: (
-        <svg className="w-5 h-5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-        </svg>
-      ),
-    },
-    {
-      name: 'Zgłoszenia Jakościowe',
-      href: '/jakosc',
-      icon: (
-        <svg className="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-        </svg>
-      ),
-    },
-    {
-      name: 'Kaizen & Ulepszenia',
-      href: '/kaizen',
-      icon: (
-        <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 01-2 2h-4a2 2 0 01-2-2v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
         </svg>
       ),
     },
@@ -117,17 +82,91 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
       ),
     },
     {
-      name: 'Historia Zapoznań',
-      href: '/ustawienia/historia-dostepu',
+      name: 'Informator',
+      href: '/informator',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
+    {
+      name: 'Kaizen & Ulepszenia',
+      href: '/kaizen',
+      badge: menuCounts.pendingKaizens,
+      badgeColor: 'bg-amber-500',
       icon: (
         <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 01-2 2h-4a2 2 0 01-2-2v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+      ),
+    },
+    {
+      name: 'Szkolenia & Badania',
+      href: '/struktura/szkolenia',
+      icon: (
+        <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+      ),
+    },
+    {
+      name: 'Zadania Produkcji',
+      href: '/zadania',
+      badge: menuCounts.pendingTasks,
+      badgeColor: 'bg-red-500',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
+    {
+      name: 'Zagrożenia BHP',
+      href: '/bhp',
+      badge: menuCounts.openBhpHazards,
+      badgeColor: 'bg-orange-600',
+      icon: (
+        <svg className="w-5 h-5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+      ),
+    },
+    {
+      name: 'Zgłoszenia Jakościowe',
+      href: '/jakosc',
+      badge: menuCounts.openQualityReports,
+      badgeColor: 'bg-purple-600',
+      icon: (
+        <svg className="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+        </svg>
+      ),
+    },
+    {
+      name: 'Zgłoszenia Usterek',
+      href: '/usterki',
+      badge: menuCounts.openFaultReports,
+      badgeColor: 'bg-rose-600',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
       ),
     },
   ];
 
-  const settingsItems = [
+  // 2. CONFIGURATION & SETTINGS - STRICT ALPHABETICAL ORDER (A-Z)
+  const configNavItems = [
+    {
+      name: 'Baza Danych (Prisma)',
+      href: '/ustawienia/baza-danych',
+      icon: (
+        <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+        </svg>
+      ),
+    },
     {
       name: 'Dostęp Sieciowy (LAN & IP)',
       href: '/ustawienia/siec',
@@ -138,21 +177,11 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
       ),
     },
     {
-      name: 'Struktura Zakładu',
-      href: '/struktura',
+      name: 'Punktacja i Cele Kaizen',
+      href: '/ustawienia/punktacja-kaizen',
       icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-        </svg>
-      ),
-    },
-    {
-      name: 'Typy audytów',
-      href: '/ustawienia/typy-audytow',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
         </svg>
       ),
     },
@@ -166,20 +195,39 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
       ),
     },
     {
+      name: 'Struktura Zakładu',
+      href: '/struktura',
+      icon: (
+        <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+      ),
+    },
+    {
+      name: 'Typy Audytów',
+      href: '/ustawienia/typy-audytow',
+      icon: (
+        <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      ),
+    },
+    {
+      name: 'Użytkownicy i Konta',
+      href: '/struktura/uzytkownicy',
+      icon: (
+        <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ),
+    },
+    {
       name: 'Wagi i Kategorie Zdarzeń',
       href: '/ustawienia/wagi-spostrzezen',
       icon: (
         <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10M7 12h10m-8 5h8" />
-        </svg>
-      ),
-    },
-    {
-      name: 'Punktacja i Cele Kaizen',
-      href: '/ustawienia/punktacja-kaizen',
-      icon: (
-        <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
         </svg>
       ),
     },
@@ -214,147 +262,113 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
         )}
       </div>
 
-      {/* Nav items */}
-      <div className="p-4 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
-        <section>
-          <h3 className="px-3 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
-            Główna Nawigacja
-          </h3>
-          <ul className="space-y-1">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={() => isMobile && onMobileClose()}
-                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
-                      isActive
-                        ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border-l-4 border-brand-500 shadow-sm'
-                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white hover:translate-x-1'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={isActive ? 'text-brand-500' : 'text-slate-400 dark:text-slate-500'}>
-                        {item.icon}
-                      </span>
-                      <span>{item.name}</span>
-                    </div>
+      {/* Nav items container */}
+      <div className="p-4 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
+        
+        {/* SEKCJA 1: GŁÓWNA NAWIGACJA (Rozwijana) */}
+        <section className="space-y-1">
+          <button
+            type="button"
+            onClick={() => toggleSection('NAV')}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer group"
+          >
+            <span className="flex items-center gap-2">
+              <span>📋</span> NAWIGACJA GŁÓWNA
+            </span>
+            <svg
+              className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${openSections.NAV ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
 
-                    {item.href === '/zadania' && menuCounts.pendingTasks > 0 && (
-                      <span className="min-w-[22px] h-5 px-1.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[11px] font-extrabold shadow-sm shadow-red-500/30 shrink-0">
-                        {menuCounts.pendingTasks}
-                      </span>
-                    )}
-
-                    {item.href === '/usterki' && menuCounts.openFaultReports > 0 && (
-                      <span className="min-w-[22px] h-5 px-1.5 flex items-center justify-center rounded-full bg-rose-600 text-white text-[11px] font-extrabold shadow-sm shadow-rose-500/30 shrink-0">
-                        {menuCounts.openFaultReports}
-                      </span>
-                    )}
-
-                    {item.href === '/bhp' && menuCounts.openBhpHazards > 0 && (
-                      <span className="min-w-[22px] h-5 px-1.5 flex items-center justify-center rounded-full bg-orange-600 text-white text-[11px] font-extrabold shadow-sm shadow-orange-500/30 shrink-0">
-                        {menuCounts.openBhpHazards}
-                      </span>
-                    )}
-
-                    {item.href === '/jakosc' && menuCounts.openQualityReports > 0 && (
-                      <span className="min-w-[22px] h-5 px-1.5 flex items-center justify-center rounded-full bg-purple-600 text-white text-[11px] font-extrabold shadow-sm shadow-purple-500/30 shrink-0">
-                        {menuCounts.openQualityReports}
-                      </span>
-                    )}
-
-                    {item.href === '/kaizen' && menuCounts.pendingKaizens > 0 && (
-                      <span className="min-w-[22px] h-5 px-1.5 flex items-center justify-center rounded-full bg-amber-500 text-white text-[11px] font-extrabold shadow-sm shadow-amber-500/30 shrink-0">
-                        {menuCounts.pendingKaizens}
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-
-        {/* Konfiguracja (Ustawienia - widoczne tylko dla Administratora) */}
-        {isAdmin && (
-          <section>
-            <h3 className="px-3 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
-              Konfiguracja & Ustawienia
-            </h3>
-            <ul className="space-y-1">
-              {settingsItems.map((item) => {
+          {openSections.NAV && (
+            <ul className="space-y-1 pt-1 animate-in fade-in duration-200">
+              {mainNavItems.map((item) => {
                 const isActive = pathname === item.href;
                 return (
                   <li key={item.href}>
                     <Link
                       href={item.href}
                       onClick={() => isMobile && onMobileClose()}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
+                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
                         isActive
                           ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border-l-4 border-brand-500 shadow-sm'
                           : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white hover:translate-x-1'
                       }`}
                     >
-                      <span className={isActive ? 'text-brand-500' : 'text-slate-400 dark:text-slate-500'}>
-                        {item.icon}
-                      </span>
-                      <span>{item.name}</span>
+                      <div className="flex items-center gap-3">
+                        <span className={isActive ? 'text-brand-500' : 'text-slate-400 dark:text-slate-500'}>
+                          {item.icon}
+                        </span>
+                        <span>{item.name}</span>
+                      </div>
+
+                      {Boolean(item.badge && item.badge > 0) && (
+                        <span className={`min-w-[22px] h-5 px-1.5 flex items-center justify-center rounded-full ${item.badgeColor} text-white text-[11px] font-extrabold shadow-sm shrink-0`}>
+                          {item.badge}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 );
               })}
             </ul>
+          )}
+        </section>
+
+        {/* SEKCJA 2: KONFIGURACJA & USTAWIENIA (Rozwijana - widoczna dla Administratora) */}
+        {isAdmin && (
+          <section className="space-y-1 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+            <button
+              type="button"
+              onClick={() => toggleSection('CONFIG')}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-800/40 transition-all cursor-pointer group"
+            >
+              <span className="flex items-center gap-2">
+                <span>⚙️</span> KONFIGURACJA & USTAWIENIA
+              </span>
+              <svg
+                className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${openSections.CONFIG ? 'rotate-180' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {openSections.CONFIG && (
+              <ul className="space-y-1 pt-1 animate-in fade-in duration-200">
+                {configNavItems.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        onClick={() => isMobile && onMobileClose()}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
+                          isActive
+                            ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border-l-4 border-brand-500 shadow-sm'
+                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white hover:translate-x-1'
+                        }`}
+                      >
+                        <span className={isActive ? 'text-brand-500' : 'text-slate-400 dark:text-slate-500'}>
+                          {item.icon}
+                        </span>
+                        <span>{item.name}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
         )}
 
-        {/* Administracja (Zarządzanie Użytkownikami - widoczne tylko dla Administratora) */}
-        {isAdmin && (
-          <section>
-            <h3 className="px-3 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
-              Administracja
-            </h3>
-            <ul className="space-y-1">
-              <li>
-                <Link
-                  href="/struktura/uzytkownicy"
-                  onClick={() => isMobile && onMobileClose()}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
-                    pathname === '/struktura/uzytkownicy'
-                      ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border-l-4 border-brand-500 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white hover:translate-x-1'
-                  }`}
-                >
-                  <span className="text-slate-400 dark:text-slate-500">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                  </span>
-                  <span>Użytkownicy</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/ustawienia/baza-danych"
-                  onClick={() => isMobile && onMobileClose()}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
-                    pathname === '/ustawienia/baza-danych'
-                      ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border-l-4 border-brand-500 shadow-sm'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white hover:translate-x-1'
-                  }`}
-                >
-                  <span className="text-slate-400 dark:text-slate-500">
-                    <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-                    </svg>
-                  </span>
-                  <span>Baza Danych (Prisma)</span>
-                </Link>
-              </li>
-            </ul>
-          </section>
-        )}
       </div>
     </div>
   );
@@ -366,15 +380,17 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
         {renderContent(false)}
       </aside>
 
-      {/* Mobile Drawer Overlay */}
+      {/* Mobile Drawer Overlay (Tło duszka) */}
       {isMobileOpen && (
         <div 
-          className="lg:hidden fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 transition-opacity animate-in fade-in duration-300 print:hidden"
+          className="lg:hidden fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[60] transition-opacity animate-in fade-in duration-300 print:hidden cursor-pointer"
           onClick={onMobileClose}
+          onTouchEnd={onMobileClose}
+          aria-label="Zamknij menu"
         />
       )}
       <aside 
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-2xl transform transition-transform duration-300 ease-out print:hidden ${
+        className={`lg:hidden fixed inset-y-0 left-0 z-[61] w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-2xl transform transition-transform duration-300 ease-out print:hidden ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

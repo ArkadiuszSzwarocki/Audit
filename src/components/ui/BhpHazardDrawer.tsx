@@ -17,6 +17,7 @@ export const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = 
   UNSAFE_BEHAVIOR: { label: 'Niebezpieczne Zachowanie', icon: '🚷' },
   FIRE_HAZARD:     { label: 'Zagrożenie Pożarowe', icon: '🔥' },
   PPE:             { label: 'Brak lub Uszkodzenie ŚOI', icon: '🥽' },
+  OTHER:           { label: 'Inne Zagrożenie BHP / Inna Sytuacja', icon: '❓' },
 };
 
 export const SEVERITY_LABELS: Record<string, { label: string; cls: string }> = {

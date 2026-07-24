@@ -1,7 +1,6 @@
-'use client';
-
 import { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/context/ToastContext';
+import { compressImage } from '@/utils/imageCompressor';
 
 interface CameraModalProps {
   isOpen: boolean;
@@ -90,11 +89,13 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
       }
 
       setIsUploading(true);
-      const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
-      const formData = new FormData();
-      formData.append('file', file);
-
       try {
+        const rawFile = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const compressedFile = await compressImage(rawFile);
+        
+        const formData = new FormData();
+        formData.append('file', compressedFile);
+
         const res = await fetch('/api/upload', {
           method: 'POST',
           body: formData,
@@ -107,22 +108,23 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
         stopCamera();
         onClose();
       } catch (err: any) {
-        showToast(err.message, 'error');
+        showToast(err.message || 'Nie udało się przesłać zdjęcia', 'error');
       } finally {
         setIsUploading(false);
       }
-    }, 'image/jpeg', 0.9);
+    }, 'image/jpeg', 0.8);
   };
 
   const handleMobileNativeCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
 
     setIsUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
+      const compressedFile = await compressImage(rawFile);
+      const formData = new FormData();
+      formData.append('file', compressedFile);
+
       const res = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
@@ -144,8 +146,8 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-5 space-y-4 shadow-2xl text-white overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200 overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-4 sm:p-5 space-y-4 shadow-2xl text-white overflow-hidden flex flex-col my-auto">
         {/* Header */}
         <div className="flex justify-between items-center pb-2 border-b border-slate-800">
           <div className="flex items-center gap-2">
@@ -157,14 +159,14 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
               stopCamera();
               onClose();
             }}
-            className="p-2 text-slate-400 hover:text-white font-bold text-lg cursor-pointer"
+            className="p-2.5 text-slate-400 hover:text-white font-bold text-xl cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl hover:bg-slate-800"
           >
             ✕
           </button>
         </div>
 
         {/* Video Frame */}
-        <div className="relative aspect-video w-full bg-black rounded-2xl overflow-hidden border border-slate-800 flex items-center justify-center">
+        <div className="relative aspect-video w-full bg-black rounded-2xl overflow-hidden border border-slate-800 flex items-center justify-center min-h-[220px]">
           {stream ? (
             <video
               ref={videoRef}
@@ -182,7 +184,7 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer"
+                className="min-h-[44px] px-5 py-3 bg-brand-600 hover:bg-brand-500 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md cursor-pointer touch-manipulation"
               >
                 Użyj natywnego aparatu w telefonie
               </button>
@@ -192,14 +194,14 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
           <canvas ref={canvasRef} className="hidden" />
         </div>
 
-        {/* Action Controls */}
+        {/* Action Controls - Mobile touch targets optimized */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
           {/* Camera Flip Button */}
           {stream && (
             <button
               type="button"
               onClick={toggleFacingMode}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              className="min-h-[44px] px-4 py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-200 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 cursor-pointer touch-manipulation"
               title="Przełącz aparat (przód / tył)"
             >
               🔄 Zmień aparat
@@ -219,7 +221,7 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+            className="min-h-[44px] px-4 py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-200 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 cursor-pointer touch-manipulation"
           >
             📁 Wybierz plik
           </button>
@@ -230,7 +232,7 @@ export function CameraModal({ isOpen, onClose, onCapture }: CameraModalProps) {
               type="button"
               disabled={isUploading}
               onClick={takeSnapshot}
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              className="min-h-[44px] px-6 py-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 touch-manipulation flex-1 sm:flex-initial justify-center"
             >
               {isUploading ? (
                 <span>⏳ Zapisywanie...</span>

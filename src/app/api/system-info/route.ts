@@ -3,6 +3,7 @@ import os from 'os';
 
 export async function GET() {
   try {
+    const hostname = os.hostname();
     const interfaces = os.networkInterfaces();
     const ips: { name: string; ip: string; url: string }[] = [];
 
@@ -20,14 +21,24 @@ export async function GET() {
       }
     }
 
+    const cleanHost = hostname.toLowerCase();
+    const hostnameUrl = `http://${cleanHost}:3000`;
+    const mDnsUrl = `http://${cleanHost}.local:3000`;
+
     return NextResponse.json({
       localUrl: 'http://localhost:3000',
+      hostname,
+      hostnameUrl,
+      mDnsUrl,
       networkAddresses: ips,
       primaryUrl: ips.length > 0 ? ips[0].url : 'http://localhost:3000',
     });
   } catch (error: any) {
     return NextResponse.json({
       localUrl: 'http://localhost:3000',
+      hostname: 'localhost',
+      hostnameUrl: 'http://localhost:3000',
+      mDnsUrl: 'http://localhost:3000',
       networkAddresses: [],
       primaryUrl: 'http://localhost:3000',
       error: error.message,
