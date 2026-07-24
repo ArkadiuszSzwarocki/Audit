@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 
 interface AccessTrackerProps {
-  entityType: 'AUDIT' | 'TASK' | 'KAIZEN' | 'FAULT';
+  entityType: 'AUDIT' | 'TASK' | 'KAIZEN' | 'FAULT' | 'BHP' | 'QUALITY';
   entityId: string | null | undefined;
   entityTitle: string | null | undefined;
 }

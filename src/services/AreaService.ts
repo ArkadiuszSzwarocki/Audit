@@ -8,8 +8,8 @@ export class AreaService {
     this.repository = new AreaRepository();
   }
 
-  async getAllAreas(): Promise<Area[]> {
-    return this.repository.findAll();
+  async getAllAreas(options?: { includeMachines?: boolean }): Promise<any[]> {
+    return this.repository.findAll(options);
   }
 
   async getArea(id: string): Promise<Area | null> {

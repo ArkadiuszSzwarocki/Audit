@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { ThemeSelector } from '@/components/ui/ThemeSelector';
 import { ChangePasswordModal } from '@/components/ui/ChangePasswordModal';
+import { useDesktopNotifications } from '@/hooks/useDesktopNotifications';
+import { KaizenRanksModal } from '@/components/ui/KaizenRanksModal';
+import { KaizenRewardPayoutModal } from '@/components/ui/KaizenRewardPayoutModal';
 
 interface HeaderProps {
   onOpenMobileMenu: () => void;
@@ -14,20 +17,29 @@ interface UserProfileStats {
   assignedTasksCount: number;
   assignedFaultsCount: number;
   submittedKaizensCount: number;
+  approvedKaizensCount: number;
   userPoints: number;
+  estimatedCashReward: number;
   rankTitle: string;
+  isScoringEnabled?: boolean;
 }
 
 export default function Header({ onOpenMobileMenu }: HeaderProps) {
   const { user, isAdmin, logout } = useAuth();
+  const { permission, requestPermission } = useDesktopNotifications();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isRanksModalOpen, setIsRanksModalOpen] = useState(false);
+  const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
+  const [payoutTab, setPayoutTab] = useState<'NEW_PAYOUT' | 'HISTORY'>('NEW_PAYOUT');
 
   const [stats, setStats] = useState<UserProfileStats>({
     assignedTasksCount: 0,
     assignedFaultsCount: 0,
     submittedKaizensCount: 0,
+    approvedKaizensCount: 0,
     userPoints: 0,
+    estimatedCashReward: 0,
     rankTitle: '🌱 Początkujący Innowator',
   });
 
@@ -48,8 +60,11 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
           assignedTasksCount: data.assignedTasksCount || 0,
           assignedFaultsCount: data.assignedFaultsCount || 0,
           submittedKaizensCount: data.submittedKaizensCount || 0,
+          approvedKaizensCount: data.approvedKaizensCount || 0,
           userPoints: data.userPoints || 0,
+          estimatedCashReward: data.estimatedCashReward || 0,
           rankTitle: data.rankTitle || '🌱 Początkujący Innowator',
+          isScoringEnabled: Boolean(data.isScoringEnabled),
         });
       }
     } catch {
@@ -81,17 +96,6 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
 
           {/* Action / User section */}
           <div className="flex items-center gap-3">
-            {/* Theme Selector Mode */}
-            <ThemeSelector compact />
-
-            <Link
-              href="/ustawienia/historia-dostepu"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 rounded-xl text-xs font-bold transition-all border border-amber-200/60 dark:border-amber-800/60"
-              title="Rejestr odczytów i cyfrowych podpisów zapoznania się z dokumentami"
-            >
-              <span>📜</span> Rejestr Zapoznań
-            </Link>
-
             {/* Interactive Logged-in User Profile Dropdown Pill */}
             {user ? (
               <div className="relative">
@@ -169,29 +173,57 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
                           <span className="px-2.5 py-0.5 bg-brand-100 text-brand-800 dark:bg-brand-950 dark:text-brand-300 font-extrabold text-[10px] rounded-md uppercase tracking-wider">
                             Rola: {user.role}
                           </span>
-                          <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 font-extrabold text-[10px] rounded-md">
-                            {stats.rankTitle}
-                          </span>
+                          {stats.isScoringEnabled && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsUserMenuOpen(false);
+                                setIsRanksModalOpen(true);
+                              }}
+                              className="px-2.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 dark:bg-amber-950 dark:text-amber-300 font-extrabold text-[10px] rounded-md transition-colors cursor-pointer flex items-center gap-1"
+                              title="Kliknij, aby zobaczyć zasady zdobywania punktów i wyższych rang"
+                            >
+                              <span>{stats.rankTitle}</span>
+                              <span className="text-[10px] text-amber-700 dark:text-amber-400 font-black">ℹ️</span>
+                            </button>
+                          )}
                         </div>
                       </div>
 
                       {/* Stats Overview */}
-                      <div className="grid grid-cols-2 gap-2 text-xs font-bold">
-                        <div className="p-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 rounded-xl">
-                          <span className="text-[10px] font-extrabold text-red-600 dark:text-red-400 uppercase tracking-wider block">
-                            Zadania do zrobienia
-                          </span>
-                          <span className="text-lg font-black text-red-700 dark:text-red-300">
-                            {stats.assignedTasksCount}
-                          </span>
+                      <div className="space-y-2 font-bold text-xs">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="p-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 rounded-xl">
+                            <span className="text-[10px] font-extrabold text-red-600 dark:text-red-400 uppercase tracking-wider block">
+                              Zadania
+                            </span>
+                            <span className="text-lg font-black text-red-700 dark:text-red-300">
+                              {stats.assignedTasksCount}
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-xl">
+                            <span className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider block">
+                              Punkty Kaizen
+                            </span>
+                            <span className="text-lg font-black text-amber-700 dark:text-amber-300">
+                              ⭐ {stats.userPoints}
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-xl">
-                          <span className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider block">
-                            Punkty Kaizen
-                          </span>
-                          <span className="text-lg font-black text-amber-700 dark:text-amber-300">
-                            ⭐ {stats.userPoints}
+                        {/* Finanse Kaizen Card */}
+                        <div className="p-3 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 border border-emerald-300 dark:border-emerald-800 rounded-xl flex items-center justify-between gap-2">
+                          <div>
+                            <span className="text-[10px] font-black uppercase text-emerald-800 dark:text-emerald-300 tracking-wider block">
+                              Przeliczenie Nagród
+                            </span>
+                            <span className="text-sm font-black text-emerald-900 dark:text-emerald-200">
+                              💰 {stats.estimatedCashReward} zł netto
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-md">
+                            {stats.approvedKaizensCount} zatw.
                           </span>
                         </div>
                       </div>
@@ -199,7 +231,7 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
                       {/* Action Links */}
                       <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-slate-800">
                         <Link
-                          href="/zadania"
+                          href="/zadania?assigned=MY_TASKS"
                           onClick={() => setIsUserMenuOpen(false)}
                           className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between transition-colors"
                         >
@@ -230,12 +262,60 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
                           type="button"
                           onClick={() => {
                             setIsUserMenuOpen(false);
+                            setPayoutTab('NEW_PAYOUT');
+                            setIsPayoutModalOpen(true);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-amber-900 dark:text-amber-300 bg-amber-50/80 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 border border-amber-200/80 dark:border-amber-800/80 flex items-center gap-2 transition-colors cursor-pointer"
+                        >
+                          <span>🎁</span> Wniosek o Wypłatę Nagrody
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            setPayoutTab('HISTORY');
+                            setIsPayoutModalOpen(true);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-emerald-900 dark:text-emerald-300 bg-emerald-50/80 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 border border-emerald-200/80 dark:border-emerald-800/80 flex items-center gap-2 transition-colors cursor-pointer"
+                        >
+                          <span>📜</span> Wyciąg i Historia Transakcji
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
                             setIsPasswordModalOpen(true);
                           }}
                           className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-900 dark:hover:text-indigo-300 flex items-center gap-2 transition-colors cursor-pointer"
                         >
                           <span>🔒</span> Zmień Hasło
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            requestPermission();
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
+                            permission === 'granted'
+                              ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/30 hover:bg-emerald-100'
+                              : 'text-amber-800 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/30 hover:bg-amber-100'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span>{permission === 'granted' ? '🔔' : '🔕'}</span> Powiadomienia Windows
+                          </span>
+                          <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                            {permission === 'granted' ? 'Włączone' : 'Wyłączone'}
+                          </span>
+                        </button>
+                      </div>
+
+                      {/* Theme Selector in User Settings */}
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <ThemeSelector />
                       </div>
 
                       {/* Logout button */}
@@ -256,12 +336,15 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
                 )}
               </div>
             ) : (
-              <Link 
-                href="/logowanie" 
-                className="text-xs font-bold px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white shadow-sm transition-all"
-              >
-                Zaloguj
-              </Link>
+              <div className="flex items-center gap-2">
+                <ThemeSelector compact />
+                <Link 
+                  href="/logowanie" 
+                  className="text-xs font-bold px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white shadow-sm transition-all"
+                >
+                  Zaloguj
+                </Link>
+              </div>
             )}
           </div>
         </div>
@@ -272,6 +355,27 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
         isOpen={isPasswordModalOpen}
         onClose={() => setIsPasswordModalOpen(false)}
       />
+
+      {/* Kaizen Ranks & Points Info Modal */}
+      <KaizenRanksModal
+        isOpen={isRanksModalOpen}
+        onClose={() => setIsRanksModalOpen(false)}
+        currentPoints={stats.userPoints}
+        currentRank={stats.rankTitle}
+      />
+
+      {/* Kaizen Reward Payout Request Modal */}
+      {user && (
+        <KaizenRewardPayoutModal
+          isOpen={isPayoutModalOpen}
+          onClose={() => setIsPayoutModalOpen(false)}
+          user={user}
+          userPoints={stats.userPoints}
+          submittedKaizensCount={stats.submittedKaizensCount}
+          isScoringEnabled={stats.isScoringEnabled}
+          initialTab={payoutTab}
+        />
+      )}
     </>
   );
 }

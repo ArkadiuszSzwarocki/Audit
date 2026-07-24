@@ -12,6 +12,10 @@ export class ObservationService {
     return this.repository.findByAuditId(auditId);
   }
 
+  async getObservationById(id: string) {
+    return this.repository.findById(id);
+  }
+
   async getPendingObservations(): Promise<Observation[]> {
     return this.repository.findPending();
   }

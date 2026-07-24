@@ -6,10 +6,10 @@ import { useRouter } from 'next/navigation';
 import { useKaizen, Kaizen } from '@/hooks/useKaizen';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/context/ToastContext';
-import { ImageModal } from '@/components/ui/ImageModal';
-import { downloadKaizenEml } from '@/utils/kaizenEmailBuilder';
 import { useAccessTracker } from '@/hooks/useAccessTracker';
 import { DocumentAccessHistoryModal } from '@/components/ui/DocumentAccessHistoryModal';
+import { KaizenDrawer } from '@/components/ui/KaizenDrawer';
+import { KaizenRewardPayoutModal } from '@/components/ui/KaizenRewardPayoutModal';
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   PENDING:  { label: '💡 Oczekujący',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800' },
@@ -22,13 +22,15 @@ interface KaizenGoal {
   targetPoints: number;
   period: string;
   rewardInfo: string;
+  isScoringEnabled?: boolean;
 }
 
 export default function KaizenListPage() {
   const router = useRouter();
   const { kaizens, loading, fetchKaizens, deleteKaizen } = useKaizen();
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { showToast, showConfirm } = useToast();
+  const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
 
   useAccessTracker({
     entityType: 'KAIZEN',
@@ -37,7 +39,7 @@ export default function KaizenListPage() {
   });
 
   const [filterStatus, setFilterStatus] = useState('');
-  const [modalImage, setModalImage] = useState<string | null>(null);
+  const [selectedKaizen, setSelectedKaizen] = useState<Kaizen | null>(null);
   const [historyTarget, setHistoryTarget] = useState<{ id: string; title: string } | null>(null);
   const [teamGoal, setTeamGoal] = useState<KaizenGoal>({
     title: 'Miesięczny Cel Kaizen Zespołu',
@@ -63,27 +65,7 @@ export default function KaizenListPage() {
     }
   };
 
-  const handleDownloadEml = (r: Kaizen) => {
-    const emailToUse = prompt('Podaj adres e-mail odbiorcy powiadomienia (np. komisja kaizen, kierownik):', 'komisja.kaizen@zaklad.pl');
-    if (emailToUse && emailToUse.trim()) {
-      const baseUrl = window.location.origin;
-      downloadKaizenEml(
-        {
-          id: r.id,
-          title: r.title,
-          description: r.description,
-          benefits: r.benefits,
-          submittedBy: r.submittedBy,
-          areaName: r.area?.name,
-          machineName: r.machine?.name,
-          photoUrl: r.photoUrl,
-        },
-        emailToUse.trim(),
-        baseUrl
-      );
-      showToast('Pobrano plik .eml z powiadomieniem Kaizen!', 'success');
-    }
-  };
+
 
   const handleDelete = (id: string) => {
     showConfirm({
@@ -143,6 +125,28 @@ export default function KaizenListPage() {
             ↻ Odśwież
           </button>
           <Link
+            href="/kaizen/regulamin"
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl font-bold text-sm shadow-xs transition-all flex items-center gap-2"
+          >
+            📜 Regulamin Programu Kaizen
+          </Link>
+          {(isAdmin || (user?.role && !['OPERATOR', 'AUDYTOR', 'AUDITOR'].includes(user.role.toUpperCase()))) && (
+            <Link
+              href="/kaizen/wyplaty"
+              className="px-3.5 py-2 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 text-emerald-950 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 rounded-xl font-bold text-sm shadow-xs transition-all flex items-center gap-2"
+              title="Przejdź do panelu zatwierdzania wypłat premii i nagród Kaizen przez Komisję / HR"
+            >
+              💳 Wypłaty Nagród (Komisja)
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={() => setIsPayoutModalOpen(true)}
+            className="px-3.5 py-2 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-800 rounded-xl font-bold text-sm shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+          >
+            🎁 Wniosek o Wypłatę Nagrody
+          </button>
+          <Link
             href="/kaizen/nowy"
             className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-2"
           >
@@ -152,7 +156,7 @@ export default function KaizenListPage() {
       </div>
 
       {/* Team Points Goal Progress Widget */}
-      {!loading && (
+      {!loading && teamGoal.isScoringEnabled && (
         <div className="p-4 sm:p-5 rounded-2xl border border-amber-300/80 dark:border-amber-800/80 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent shadow-sm space-y-2">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-3">
@@ -260,13 +264,13 @@ export default function KaizenListPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px] font-black border-b border-slate-200 dark:border-slate-700">
                 <tr>
-                  <th className="p-3 text-center w-12">#</th>
-                  <th className="p-3">Status i Punkty</th>
-                  <th className="p-3">Tytuł Pomysłu, Opis i Korzyści</th>
-                  <th className="p-3">Obszar / Maszyna</th>
-                  <th className="p-3">Zgłaszający</th>
-                  <th className="p-3 whitespace-nowrap">Data Zgłoszenia</th>
-                  <th className="p-3 text-center w-36">Akcje</th>
+                  <th className="p-3 text-center w-10">#</th>
+                  <th className="p-3 w-36">Status</th>
+                  <th className="p-3">Tytuł Pomysłu</th>
+                  <th className="p-3 whitespace-nowrap w-32">Data Zgłoszenia</th>
+                  <th className="p-3 text-center w-10">
+                    <span title="Kliknij wiersz, aby otworzyć szczegóły">ℹ️</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
@@ -276,121 +280,42 @@ export default function KaizenListPage() {
                   return (
                     <tr
                       key={k.id}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                      onClick={() => router.push(`/kaizen/${k.id}`)}
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
                     >
-                      {/* # Index */}
-                      <td className="p-3 text-center font-bold text-xs text-slate-400">
-                        {idx + 1}
-                      </td>
+                      <td className="p-3 text-center font-bold text-xs text-slate-400">{idx + 1}</td>
 
-                      {/* Status Badge & Points */}
-                      <td className="p-3 whitespace-nowrap space-y-1.5">
+                      <td className="p-3 whitespace-nowrap space-y-1">
                         <div>
-                          <span className={`px-2.5 py-1 text-[11px] font-extrabold rounded-lg border ${st.cls}`}>
+                          <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-md border ${st.cls}`}>
                             {st.label}
                           </span>
                         </div>
-                        {k.status === 'APPROVED' && Boolean(k.pointsAwarded) && (
+                        {k.status === 'APPROVED' && Boolean(teamGoal.isScoringEnabled) && Boolean(k.pointsAwarded) && (
                           <div>
-                            <span className="px-2 py-0.5 bg-amber-500 text-white font-black text-[10px] rounded-lg shadow-xs">
+                            <span className="px-2 py-0.5 bg-amber-500 text-white font-black text-[10px] rounded-md">
                               ⭐ +{k.pointsAwarded} pkt
                             </span>
                           </div>
                         )}
                       </td>
 
-                      {/* Title, Description & Benefits */}
-                      <td className="p-3 max-w-md">
-                        <div className="flex items-start gap-3">
-                          {k.photoUrl && (
-                            <button
-                              onClick={() => setModalImage(k.photoUrl!)}
-                              className="shrink-0 cursor-pointer group relative"
-                              title="Kliknij, aby powiększyć zdjęcie"
-                            >
-                              <img
-                                src={k.photoUrl}
-                                alt="Miniatura"
-                                className="w-12 h-12 object-cover rounded-xl border border-slate-300 dark:border-slate-700 group-hover:scale-105 transition-transform"
-                              />
-                            </button>
-                          )}
-                          <div>
-                            <div className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-snug">
-                              {k.title}
-                            </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                              {k.description}
-                            </p>
-                            {k.benefits && (
-                              <div className="mt-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                                💡 Korzyść: <span className="line-clamp-1 italic">{k.benefits}</span>
-                              </div>
-                            )}
-                          </div>
+                      <td className="p-3">
+                        <div className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-snug">
+                          {k.title}
                         </div>
-                      </td>
-
-                      {/* Area & Machine */}
-                      <td className="p-3 whitespace-nowrap">
-                        <div className="font-bold text-xs text-slate-800 dark:text-slate-200">
-                          📍 {k.area?.name || 'Cały zakład'}
-                        </div>
-                        {k.machine && (
-                          <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
-                            ⚙️ {k.machine.name}
+                        {k.area && (
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            📍 {k.area.name}{k.machine ? ` · ⚙️ ${k.machine.name}` : ''}
                           </div>
                         )}
                       </td>
 
-                      {/* Submitter */}
-                      <td className="p-3 whitespace-nowrap text-xs">
-                        <strong className="text-slate-800 dark:text-slate-200">{k.submittedBy}</strong>
-                      </td>
-
-                      {/* Dates */}
                       <td className="p-3 whitespace-nowrap text-xs text-slate-500">
                         {new Date(k.createdAt).toLocaleDateString('pl-PL')}
                       </td>
 
-                      {/* Action Icon Buttons */}
-                      <td className="p-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => setHistoryTarget({ id: k.id, title: k.title })}
-                            className="p-2 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-bold transition-all border border-amber-200 dark:border-amber-800/60 cursor-pointer"
-                            title="Zobacz osoby, które zapoznały się z tym wniskiem Kaizen"
-                          >
-                            👥
-                          </button>
-
-                          <button
-                            onClick={() => handleDownloadEml(k)}
-                            className="p-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold transition-all border border-indigo-200 dark:border-indigo-800/60 cursor-pointer"
-                            title="Pobierz powiadomienie e-mail w formacie .eml"
-                          >
-                            📧
-                          </button>
-
-                          <button
-                            onClick={() => router.push(`/kaizen/${k.id}`)}
-                            className="p-2 bg-brand-50 dark:bg-brand-950/60 hover:bg-brand-100 text-brand-700 dark:text-brand-300 rounded-xl text-xs font-bold transition-all border border-brand-200 dark:border-brand-800/60 cursor-pointer"
-                            title="Otwórz szczegóły wniosku i decyzję komisji"
-                          >
-                            🔍
-                          </button>
-
-                          {isAdmin && (
-                            <button
-                              onClick={() => handleDelete(k.id)}
-                              className="p-2 bg-red-50 dark:bg-red-950/60 hover:bg-red-100 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold transition-all border border-red-200 dark:border-red-800/60 cursor-pointer"
-                              title="Usuń wniosek Kaizen"
-                            >
-                              🗑️
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                      <td className="p-3 text-center text-slate-300 dark:text-slate-700 text-xs">›</td>
                     </tr>
                   );
                 })}
@@ -400,8 +325,17 @@ export default function KaizenListPage() {
         </div>
       )}
 
-      {modalImage && <ImageModal isOpen={!!modalImage} imageUrl={modalImage} onClose={() => setModalImage(null)} />}
-      
+      {/* Kaizen Drawer */}
+      <KaizenDrawer
+        kaizen={selectedKaizen}
+        onClose={() => setSelectedKaizen(null)}
+        onViewHistory={(k) => {
+          setHistoryTarget({ id: k.id, title: k.title });
+        }}
+        isAdmin={isAdmin}
+        onDelete={handleDelete}
+      />
+
       {historyTarget && (
         <DocumentAccessHistoryModal
           isOpen={!!historyTarget}
@@ -409,6 +343,17 @@ export default function KaizenListPage() {
           entityType="KAIZEN"
           entityId={historyTarget.id}
           entityTitle={historyTarget.title}
+        />
+      )}
+
+      {user && (
+        <KaizenRewardPayoutModal
+          isOpen={isPayoutModalOpen}
+          onClose={() => setIsPayoutModalOpen(false)}
+          user={user}
+          userPoints={totalPointsAwarded}
+          submittedKaizensCount={kaizens.length}
+          isScoringEnabled={teamGoal.isScoringEnabled}
         />
       )}
     </div>

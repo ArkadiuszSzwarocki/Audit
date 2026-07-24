@@ -41,6 +41,21 @@ export class FaultReportService {
     return this.repo.update(id, { status });
   }
 
+  async holdAndExtend(id: string, newDueDate: Date, reason: string): Promise<FaultReportWithRelations> {
+    const existing = await this.getById(id);
+    const formattedDate = newDueDate.toLocaleDateString('pl-PL');
+    const extensionNote = `[ZAWIESZONE - PRZEDŁUŻONO TERMIN DO ${formattedDate}]: ${reason}`;
+    const updatedComment = existing.operatorComment
+      ? `${existing.operatorComment}\n${extensionNote}`
+      : extensionNote;
+
+    return this.repo.update(id, {
+      status: 'HOLD',
+      dueDate: newDueDate,
+      operatorComment: updatedComment,
+    });
+  }
+
   async assignTo(id: string, assignedToId: string | null): Promise<FaultReportWithRelations> {
     await this.getById(id);
     return this.repo.update(id, { assignedToId: assignedToId ?? undefined });

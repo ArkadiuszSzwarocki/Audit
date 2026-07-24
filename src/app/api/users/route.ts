@@ -5,13 +5,13 @@ import { getAuthSession } from '@/lib/auth';
 
 export async function GET() {
   const session = await getAuthSession();
-  if (!session || !session.isAdmin) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 });
+  if (!session) {
+    return NextResponse.json({ error: 'Brak autoryzacji' }, { status: 401 });
   }
 
   const users = await prisma.user.findMany({
-    select: { id: true, login: true, name: true, role: true, createdAt: true },
-    orderBy: { createdAt: 'desc' }
+    select: { id: true, login: true, name: true, email: true, role: true, bhpTrainingDueDate: true, dismissedBhpNoticeThreshold: true, createdAt: true },
+    orderBy: { name: 'asc' }
   });
   return NextResponse.json(users);
 }
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { login, name, password, role } = await request.json();
+    const { login, name, email, password, role, bhpTrainingDueDate } = await request.json();
     
     if (!login || !name || !password) {
       return NextResponse.json({ error: 'Wypełnij wszystkie wymagane pola' }, { status: 400 });
@@ -46,10 +46,12 @@ export async function POST(request: Request) {
       data: {
         login,
         name,
+        email: email?.trim() || null,
         passwordHash,
-        role: role || 'OPERATOR'
+        role: role || 'OPERATOR',
+        bhpTrainingDueDate: bhpTrainingDueDate ? new Date(bhpTrainingDueDate) : null,
       },
-      select: { id: true, login: true, name: true, role: true }
+      select: { id: true, login: true, name: true, email: true, role: true, bhpTrainingDueDate: true }
     });
 
     return NextResponse.json(newUser, { status: 201 });

@@ -18,7 +18,7 @@ interface AccessLog {
 interface DocumentAccessHistoryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  entityType: 'AUDIT' | 'TASK' | 'KAIZEN' | 'FAULT';
+  entityType: 'AUDIT' | 'TASK' | 'KAIZEN' | 'FAULT' | 'BHP' | 'QUALITY';
   entityId: string;
   entityTitle: string;
 }
@@ -70,12 +70,13 @@ export function DocumentAccessHistoryModal({
       case 'TASK': return 'Zlecenia Produkcji';
       case 'KAIZEN': return 'Wniosku Kaizen';
       case 'FAULT': return 'Zgłoszenia Usterki';
+      case 'BHP': return 'Zgłoszenia BHP';
       default: return 'Dokumentu';
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden">
         
         {/* Modal Header */}

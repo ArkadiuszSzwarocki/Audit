@@ -20,6 +20,7 @@ interface KaizenGoal {
   targetPoints: number;
   period: string;
   rewardInfo: string;
+  isScoringEnabled?: boolean;
 }
 
 export default function KaizenScoringSettingsPage() {
@@ -122,6 +123,31 @@ export default function KaizenScoringSettingsPage() {
     });
   };
 
+  const handleToggleScoring = async () => {
+    const nextState = !goal.isScoringEnabled;
+    try {
+      const res = await fetch('/api/kaizen-scoring', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle_scoring', isScoringEnabled: nextState }),
+      });
+      if (res.ok) {
+        setGoal(prev => ({ ...prev, isScoringEnabled: nextState }));
+        showToast(
+          nextState
+            ? 'Moduł punktacji i rang Kaizen został WŁĄCZONY!'
+            : 'Moduł punktacji został WYŁĄCZONY (punkty nie są przydzielane).',
+          'success'
+        );
+      } else {
+        const json = await res.json();
+        showToast(json.error || 'Błąd zmiany stanu punktacji', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-300">
       {/* Header */}
@@ -159,6 +185,51 @@ export default function KaizenScoringSettingsPage() {
         <div className="text-center py-12 text-slate-400 font-bold animate-pulse">Ładowanie reguł punktacji...</div>
       ) : (
         <div className="space-y-8">
+          {/* Master Toggle Banner */}
+          <section className={`p-6 rounded-3xl border transition-all ${
+            goal.isScoringEnabled
+              ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800'
+              : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800'
+          }`}>
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <span className="text-4xl">{goal.isScoringEnabled ? '🟢' : '⏸️'}</span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-extrabold text-slate-900 dark:text-slate-100">
+                      System Przydzielania Punktów Kaizen
+                    </h2>
+                    <span className={`px-2.5 py-0.5 text-xs font-black rounded-md uppercase tracking-wider ${
+                      goal.isScoringEnabled
+                        ? 'bg-emerald-200 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-200'
+                        : 'bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-200'
+                    }`}>
+                      {goal.isScoringEnabled ? 'AKTYWNY' : 'WYŁĄCZONY (OCZEKUJE NA REGULAMIN)'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed max-w-2xl">
+                    {goal.isScoringEnabled
+                      ? 'System punktowy jest aktywny. Przy zatwierdzaniu Kaizena przydzielane są punkty, a w profilu wyświetlają się rangi innowatorów.'
+                      : 'Punkty są obecnie wyłączone. Wnioski Kaizen są rejestrowane i akceptowane bez naliczania punktacji. Gdy zarząd uchwali regulamin, włącz ten moduł jednym kliknięciem.'}
+                  </p>
+                </div>
+              </div>
+
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={handleToggleScoring}
+                  className={`px-5 py-3 rounded-2xl font-black text-xs shadow-lg transition-all cursor-pointer whitespace-nowrap ${
+                    goal.isScoringEnabled
+                      ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  }`}
+                >
+                  {goal.isScoringEnabled ? '⏹️ Wyłącz Moduł Punktacji' : '⚡ Włącz Moduł Punktacji (1-Klik)'}
+                </button>
+              )}
+            </div>
+          </section>
           {/* Section 1: Team Goal Settings */}
           <section className="glass-card p-6 bg-amber-500/10 border-amber-300 dark:border-amber-800/80 space-y-4">
             <div className="flex items-center gap-3">

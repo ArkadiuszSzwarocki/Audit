@@ -6,6 +6,7 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import { ToastProvider } from '@/context/ToastContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { BhpTrainingNoticeModal } from '../ui/BhpTrainingNoticeModal';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -28,6 +29,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <ToastProvider>
+        <BhpTrainingNoticeModal />
         <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
           {/* Kontener 1: Pasek Boczny (Stałek na Desktopie, Drawer na Mobile) */}
           <Sidebar isMobileOpen={isMobileOpen} onMobileClose={() => setIsMobileOpen(false)} />

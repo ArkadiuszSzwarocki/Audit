@@ -20,6 +20,9 @@ export default function AuditDetailsPage({ params }: { params: Promise<{ id: str
   const { user, isAdmin } = useAuth();
   const { users, fetchUsers } = useUsers();
   const { showToast, showConfirm } = useToast();
+
+  const isOperatorOrEmployee = user?.role === 'OPERATOR' || user?.role === 'PRACOWNIK';
+  const canSendEmail = isAdmin || (Boolean(user) && !isOperatorOrEmployee);
   
   const [audit, setAudit] = useState<Audit | null>(null);
   const [loading, setLoading] = useState(true);
@@ -420,17 +423,19 @@ export default function AuditDetailsPage({ params }: { params: Promise<{ id: str
                       <span>Kto zapoznał się z audytem</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsActionsMenuOpen(false);
-                        setIsEmailModalOpen(true);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-900 dark:hover:text-indigo-300 flex items-center gap-2.5 transition-colors cursor-pointer"
-                    >
-                      <span className="text-base">✉️</span>
-                      <span>Wyślij Raport E-mail</span>
-                    </button>
+                    {canSendEmail && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          setIsEmailModalOpen(true);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-900 dark:hover:text-indigo-300 flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <span className="text-base">✉️</span>
+                        <span>Wyślij Raport E-mail</span>
+                      </button>
+                    )}
 
                     <button
                       type="button"

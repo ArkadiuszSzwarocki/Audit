@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useFaultReports, FaultReport } from '@/hooks/useFaultReports';
+import { useStructure } from '@/hooks/useStructure';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/context/ToastContext';
-import { ImageModal } from '@/components/ui/ImageModal';
-import { downloadFaultReportEml } from '@/utils/faultReportEmailBuilder';
-import { useAccessTracker } from '@/hooks/useAccessTracker';
+import { FaultReportDrawer } from '@/components/ui/FaultReportDrawer';
 import { DocumentAccessHistoryModal } from '@/components/ui/DocumentAccessHistoryModal';
+import { useAccessTracker } from '@/hooks/useAccessTracker';
 
 const SEVERITY_LABELS: Record<string, { label: string; cls: string }> = {
   CRITICAL: { label: '🔴 Krytyczna',    cls: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200 dark:border-red-800' },
@@ -20,6 +20,7 @@ const SEVERITY_LABELS: Record<string, { label: string; cls: string }> = {
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   OPEN:        { label: '🔓 Otwarte',      cls: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200 dark:border-red-800' },
   IN_PROGRESS: { label: '⚙️ W trakcie',   cls: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border-blue-200 dark:border-blue-800' },
+  HOLD:        { label: '⏸️ Zawieszone',   cls: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800' },
   RESOLVED:    { label: '✅ Naprawione',   cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
   CLOSED:      { label: '🔒 Zamknięte',   cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-300 dark:border-slate-700' },
 };
@@ -27,9 +28,11 @@ const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
 export default function UsterkiPage() {
   const router = useRouter();
   const { reports, loading, fetchReports, resolveReport, deleteReport } = useFaultReports();
+  const { areas, machines } = useStructure();
   const { isAdmin } = useAuth();
   const { showToast, showConfirm } = useToast();
 
+  // Track overall register access (not individual records)
   useAccessTracker({
     entityType: 'FAULT',
     entityId: 'USTERKI_REJESTR',
@@ -37,41 +40,70 @@ export default function UsterkiPage() {
   });
 
   const [filterStatus, setFilterStatus] = useState('');
-  const [modalImage, setModalImage] = useState<string | null>(null);
-  const [historyTarget, setHistoryTarget] = useState<{ id: string; title: string } | null>(null);
+  const [filterAreaId, setFilterAreaId] = useState('');
+  const [filterMachineId, setFilterMachineId] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [showAreaCounters, setShowAreaCounters] = useState(false);
 
-  const handleSendEmail = (r: FaultReport) => {
-    const targetEmail = r.notifyEmails || r.assignedTo?.email || '';
-    const emailToUse = prompt('Podaj adres e-mail odbiorcy powiadomienia:', targetEmail);
-    if (emailToUse && emailToUse.trim()) {
-      const baseUrl = window.location.origin;
-      downloadFaultReportEml(
-        {
-          id: r.id,
-          title: r.title,
-          description: r.description,
-          severity: r.severity,
-          reportedBy: r.reportedBy,
-          dueDate: r.dueDate,
-          areaName: r.area?.name,
-          machineName: r.machine?.name,
-          assignedToName: r.assignedTo?.name,
-          photoUrl: r.photoUrl,
-        },
-        emailToUse.trim(),
-        baseUrl
-      );
-      showToast('Pobrano plik .eml z powiadomieniem!', 'success');
-    }
-  };
+  const [selectedReport, setSelectedReport] = useState<FaultReport | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     fetchReports(filterStatus ? { status: filterStatus } : undefined, reports.length === 0);
   }, [fetchReports, filterStatus, reports.length]);
 
-  const openCount = reports.filter(r => ['OPEN', 'IN_PROGRESS'].includes(r.status)).length;
+  const openCount = reports.filter(r => ['OPEN', 'IN_PROGRESS', 'HOLD'].includes(r.status)).length;
   const resolvedCount = reports.filter(r => r.status === 'RESOLVED').length;
   const criticalCount = reports.filter(r => r.severity === 'CRITICAL' && r.status !== 'RESOLVED').length;
+
+  const handleUpdateStatus = async (id: string, status: string, comment?: string) => {
+    try {
+      if (status === 'RESOLVED') {
+        await resolveReport(id, undefined, comment);
+      } else {
+        const res = await fetch(`/api/fault-reports/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        });
+        if (!res.ok) throw new Error('Błąd zmiany statusu');
+      }
+      showToast('Status usterki został zaktualizowany!', 'success');
+      fetchReports(undefined, false);
+      if (selectedReport?.id === id) {
+        setSelectedReport(prev => prev ? { ...prev, status } : null);
+      }
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleHoldAndExtend = async (id: string, newDueDate: string, reason: string) => {
+    try {
+      const res = await fetch(`/api/fault-reports/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'hold_and_extend',
+          newDueDate,
+          reason,
+        }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error ?? 'Błąd zawieszania usterki');
+      }
+      showToast('Zgłoszenie usterki zostało zawieszone z nowym terminem!', 'success');
+      fetchReports(undefined, false);
+      if (selectedReport?.id === id) {
+        const updatedReport = await res.json();
+        setSelectedReport(updatedReport);
+      }
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  };
 
   const handleDelete = (id: string) => {
     showConfirm({
@@ -90,6 +122,52 @@ export default function UsterkiPage() {
     });
   };
 
+  const handleNavigateKaizen = (r: FaultReport) => {
+    router.push(`/kaizen/nowy?title=${encodeURIComponent('Kaizen: ' + r.title)}&description=${encodeURIComponent(r.description)}`);
+  };
+
+  const filteredReports = reports.filter(r => {
+    if (filterStatus && r.status !== filterStatus) return false;
+    const rAreaId = r.area?.id || r.areaId;
+    const rMachineId = r.machine?.id || r.machineId;
+    if (filterAreaId && rAreaId !== filterAreaId) return false;
+    if (filterMachineId && rMachineId !== filterMachineId) return false;
+
+    if (startDate) {
+      const rDate = new Date(r.createdAt).setHours(0, 0, 0, 0);
+      const sDate = new Date(startDate).setHours(0, 0, 0, 0);
+      if (rDate < sDate) return false;
+    }
+    if (endDate) {
+      const rDate = new Date(r.createdAt).setHours(0, 0, 0, 0);
+      const eDate = new Date(endDate).setHours(23, 59, 59, 999);
+      if (rDate > eDate) return false;
+    }
+    return true;
+  });
+
+  // Calculate breakdown of fault reports per area for the counter panel
+  const areaCounts = areas.map(area => {
+    const areaReports = reports.filter(r => (r.area?.id || r.areaId) === area.id);
+    const openCount = areaReports.filter(r => ['OPEN', 'IN_PROGRESS', 'HOLD'].includes(r.status)).length;
+    const totalCount = areaReports.length;
+    return { area, openCount, totalCount };
+  });
+
+  const availableMachines = filterAreaId
+    ? machines.filter(m => m.areaId === filterAreaId)
+    : machines;
+
+  const hasActiveFilters = filterStatus || filterAreaId || filterMachineId || startDate || endDate;
+
+  const handleResetFilters = () => {
+    setFilterStatus('');
+    setFilterAreaId('');
+    setFilterMachineId('');
+    setStartDate('');
+    setEndDate('');
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 max-w-7xl mx-auto">
       {/* Header */}
@@ -99,10 +177,24 @@ export default function UsterkiPage() {
             🔧 Rejestr Awarii i Usterek Produkcyjnych
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
-            Ewidencja i śledzenie wszystkich zgłoszeń technicznych i awarii w zakładowym systemie audytowym.
+            Ewidencja i śledzenie wszystkich zgłoszeń technicznych i awarii. Kliknij wiersz, aby otworzyć szczegóły.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => setShowAreaCounters(!showAreaCounters)}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer border ${
+              showAreaCounters
+                ? 'bg-amber-500 text-white border-amber-600'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
+            }`}
+            title="Kliknij, aby rozwinąć/zwinąć podsumowanie usterek według poszczególnych rejonów"
+          >
+            <span>📊 Licznik Usterek wg Rejonów</span>
+            <span className="text-xs px-2 py-0.5 rounded-md bg-white/20 font-black">
+              {showAreaCounters ? '▲ Ukryj' : '▼ Pokaż'}
+            </span>
+          </button>
           <button
             onClick={() => setHistoryTarget({ id: 'USTERKI_REJESTR', title: 'Rejestr Usterek i Awarii Produkcyjnych' })}
             className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-sm font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
@@ -111,7 +203,7 @@ export default function UsterkiPage() {
             👥 Zapoznania z Rejestrem
           </button>
           <button
-            onClick={() => fetchReports(filterStatus ? { status: filterStatus } : undefined, false)}
+            onClick={() => fetchReports(undefined, false)}
             className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-xl text-sm font-bold transition-colors cursor-pointer"
           >
             ↻ Odśwież
@@ -134,7 +226,7 @@ export default function UsterkiPage() {
             </div>
             <div>
               <div className="text-2xl font-black text-slate-800 dark:text-slate-100 leading-none">{openCount}</div>
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-1">Otwarte Awaria</div>
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-1">Otwarte Awarie</div>
             </div>
           </div>
           <div className="rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 px-5 py-4 flex items-center gap-4 shadow-sm">
@@ -143,7 +235,7 @@ export default function UsterkiPage() {
             </div>
             <div>
               <div className="text-2xl font-black text-red-600 dark:text-red-400 leading-none">{criticalCount}</div>
-              <div className="text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400 mt-1">Krytyczne Awaria</div>
+              <div className="text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400 mt-1">Krytyczne Awarie</div>
             </div>
           </div>
           <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/20 px-5 py-4 flex items-center gap-4 shadow-sm">
@@ -158,12 +250,139 @@ export default function UsterkiPage() {
         </div>
       )}
 
+      {/* Collapsible Area Counter Panel ("Ukryty licznik") */}
+      {showAreaCounters && (
+        <div className="p-5 bg-slate-900 text-white rounded-3xl border border-slate-800 space-y-4 animate-in slide-in-from-top-4 duration-300 shadow-xl">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">📊</span>
+              <h2 className="font-extrabold text-base text-slate-100">
+                Licznik Usterek według Rejonów Produkcyjnych
+              </h2>
+            </div>
+            <span className="text-xs font-bold text-slate-400">
+              Kliknij rejon, aby zfiltrować listę
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {areaCounts.map(({ area, openCount, totalCount }) => {
+              const isSelected = filterAreaId === area.id;
+              return (
+                <button
+                  key={area.id}
+                  type="button"
+                  onClick={() => setFilterAreaId(isSelected ? '' : area.id)}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                    isSelected
+                      ? 'bg-amber-500 text-white border-amber-400 ring-2 ring-amber-400/40 shadow-lg'
+                      : 'bg-slate-800/80 hover:bg-slate-800 text-slate-200 border-slate-700 hover:border-amber-500/50'
+                  }`}
+                >
+                  <div className="font-extrabold text-xs truncate mb-2">
+                    📍 {area.name}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] opacity-80">Łącznie: <strong>{totalCount}</strong></span>
+                    <span className={`px-2 py-0.5 rounded-lg text-[11px] font-black ${
+                      openCount > 0
+                        ? isSelected ? 'bg-red-900 text-red-100' : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                        : isSelected ? 'bg-emerald-900 text-emerald-100' : 'bg-emerald-500/20 text-emerald-400'
+                    }`}>
+                      {openCount > 0 ? `🔓 Otwarte: ${openCount}` : '✅ 0 otwartych'}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Advanced Filters Bar (Rejon, Maszyna, Data Od / Do) */}
+      <div className="p-4 bg-slate-50 dark:bg-slate-900/90 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Filter Area */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+              📍 Rejon / Obszar
+            </label>
+            <select
+              value={filterAreaId}
+              onChange={e => { setFilterAreaId(e.target.value); setFilterMachineId(''); }}
+              className="w-full px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="">Wszystkie rejony</option>
+              {areas.map(a => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filter Machine */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+              ⚙️ Maszyna / Linia
+            </label>
+            <select
+              value={filterMachineId}
+              onChange={e => setFilterMachineId(e.target.value)}
+              className="w-full px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="">Wszystkie maszyny</option>
+              {availableMachines.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Start Date */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+              📅 Data zgłoszenia od
+            </label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              className="w-full px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          {/* End Date */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+              📅 Data zgłoszenia do
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={e => setEndDate(e.target.value)}
+              className="w-full px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+        </div>
+
+        {/* Reset button if active */}
+        {hasActiveFilters && (
+          <div className="flex justify-end pt-1">
+            <button
+              onClick={handleResetFilters}
+              className="px-3 py-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+            >
+              ✕ Wyczyść Filtry
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Filter Tabs */}
       <div className="flex flex-wrap gap-2 items-center bg-slate-100 dark:bg-slate-800/60 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
         {[
           ['', 'Wszystkie Zgłoszenia'],
           ['OPEN', '🔓 Otwarte'],
           ['IN_PROGRESS', '⚙️ W trakcie'],
+          ['HOLD', '⏸️ Zawieszone'],
           ['RESOLVED', '✅ Naprawione'],
           ['CLOSED', '🔒 Zamknięte']
         ].map(([val, label]) => (
@@ -180,14 +399,14 @@ export default function UsterkiPage() {
           </button>
         ))}
         <div className="ml-auto text-xs font-bold text-slate-500 pr-2">
-          Łącznie: <strong>{reports.length}</strong>
+          Łącznie: <strong>{filteredReports.length}</strong>
         </div>
       </div>
 
-      {/* Table List View */}
+      {/* Table */}
       {loading ? (
         <div className="text-center p-12 animate-pulse text-slate-400 font-bold">Ładowanie rejestru awarii...</div>
-      ) : reports.length === 0 ? (
+      ) : filteredReports.length === 0 ? (
         <div className="text-center py-16 glass-card font-bold text-emerald-600 dark:text-emerald-400 text-xl border border-dashed border-emerald-300 dark:border-emerald-800 rounded-2xl">
           🎉 Brak zgłoszeń awarii spełniających kryteria!
         </div>
@@ -197,154 +416,65 @@ export default function UsterkiPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px] font-black border-b border-slate-200 dark:border-slate-700">
                 <tr>
-                  <th className="p-3 text-center w-12">#</th>
-                  <th className="p-3">Ważność / Status</th>
-                  <th className="p-3">Tytuł Zgłoszenia i Opis Awarii</th>
-                  <th className="p-3">Obszar / Maszyna</th>
-                  <th className="p-3">Zgłaszający / Przypisany</th>
-                  <th className="p-3 whitespace-nowrap">Data / Termin</th>
-                  <th className="p-3 text-center w-36">Akcje</th>
+                  <th className="p-3 text-center w-10">#</th>
+                  <th className="p-3 w-40">Ważność / Status</th>
+                  <th className="p-3">Tytuł Zgłoszenia</th>
+                  <th className="p-3 whitespace-nowrap w-32">Data</th>
+                  <th className="p-3 text-center w-10">
+                    <span title="Kliknij wiersz, aby otworzyć szczegóły">ℹ️</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
-                {reports.map((r: FaultReport, idx: number) => {
+                {filteredReports.map((r: FaultReport, idx: number) => {
                   const sev = SEVERITY_LABELS[r.severity] ?? { label: r.severity, cls: 'bg-slate-100 text-slate-700' };
                   const st = STATUS_LABELS[r.status] ?? { label: r.status, cls: 'bg-slate-100 text-slate-700' };
-                  const isOpen = ['OPEN', 'IN_PROGRESS'].includes(r.status);
+                  const isOpen = ['OPEN', 'IN_PROGRESS', 'HOLD'].includes(r.status);
 
                   return (
                     <tr
                       key={r.id}
-                      className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
+                      onClick={() => router.push(`/usterki/${r.id}`)}
+                      className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer ${
                         r.severity === 'CRITICAL' && isOpen ? 'bg-red-50/40 dark:bg-red-950/20' : ''
                       }`}
                     >
                       {/* # Index */}
-                      <td className="p-3 text-center font-bold text-xs text-slate-400">
-                        {idx + 1}
-                      </td>
+                      <td className="p-3 text-center font-bold text-xs text-slate-400">{idx + 1}</td>
 
                       {/* Badges */}
                       <td className="p-3 space-y-1.5 whitespace-nowrap">
                         <div>
-                          <span className={`px-2.5 py-1 text-[11px] font-extrabold rounded-lg border ${sev.cls}`}>
+                          <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-md border ${sev.cls}`}>
                             {sev.label}
                           </span>
                         </div>
                         <div>
-                          <span className={`px-2.5 py-1 text-[11px] font-extrabold rounded-lg border ${st.cls}`}>
+                          <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-md border ${st.cls}`}>
                             {st.label}
                           </span>
                         </div>
                       </td>
 
-                      {/* Title & Description */}
-                      <td className="p-3 max-w-md">
-                        <div className="flex items-start gap-3">
-                          {r.photoUrl && (
-                            <button
-                              onClick={() => setModalImage(r.photoUrl!)}
-                              className="shrink-0 cursor-pointer group relative"
-                              title="Kliknij, aby powiększyć zdjęcie"
-                            >
-                              <img
-                                src={r.photoUrl}
-                                alt="Miniatura"
-                                className="w-12 h-12 object-cover rounded-xl border border-slate-300 dark:border-slate-700 group-hover:scale-105 transition-transform"
-                              />
-                            </button>
-                          )}
-                          <div>
-                            <div className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-snug">
-                              {r.title}
-                            </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                              {r.description}
-                            </p>
-                          </div>
+                      {/* Title */}
+                      <td className="p-3">
+                        <div className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-snug">
+                          {r.title}
                         </div>
-                      </td>
-
-                      {/* Area & Machine */}
-                      <td className="p-3 whitespace-nowrap">
-                        <div className="font-bold text-xs text-slate-800 dark:text-slate-200">
-                          📍 {r.area?.name || 'Cały zakład'}
-                        </div>
-                        {r.machine && (
-                          <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
-                            ⚙️ {r.machine.name}
+                        {r.area && (
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            📍 {r.area.name}{r.machine ? ` · ⚙️ ${r.machine.name}` : ''}
                           </div>
                         )}
                       </td>
 
-                      {/* People */}
-                      <td className="p-3 whitespace-nowrap text-xs">
-                        <div>
-                          <span className="text-slate-400">Zgłosił:</span>{' '}
-                          <strong className="text-slate-800 dark:text-slate-200">{r.reportedBy}</strong>
-                        </div>
-                        {r.assignedTo ? (
-                          <div className="mt-0.5">
-                            <span className="text-slate-400">Przypisany:</span>{' '}
-                            <strong className="text-brand-600 dark:text-brand-400">{r.assignedTo.name}</strong>
-                          </div>
-                        ) : (
-                          <div className="text-[11px] text-slate-400 italic mt-0.5">Brak przypisania</div>
-                        )}
+                      {/* Date */}
+                      <td className="p-3 whitespace-nowrap text-xs text-slate-500">
+                        {new Date(r.createdAt).toLocaleDateString('pl-PL')}
                       </td>
 
-                      {/* Dates */}
-                      <td className="p-3 whitespace-nowrap text-xs">
-                        <div className="text-slate-500">
-                          {new Date(r.createdAt).toLocaleDateString('pl-PL')}
-                        </div>
-                        {r.dueDate && (
-                          <div className="mt-1">
-                            <span className="px-2 py-0.5 bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 font-bold text-[10px] rounded border border-red-200 dark:border-red-800">
-                              📅 {new Date(r.dueDate).toLocaleDateString('pl-PL')}
-                            </span>
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Action Icon Buttons */}
-                      <td className="p-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => setHistoryTarget({ id: r.id, title: r.title })}
-                            className="p-2 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-bold transition-all border border-amber-200 dark:border-amber-800/60 cursor-pointer"
-                            title="Zobacz osoby, które zapoznały się z tą usterką"
-                          >
-                            👥
-                          </button>
-
-                          <button
-                            onClick={() => handleSendEmail(r)}
-                            className="p-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold transition-all border border-indigo-200 dark:border-indigo-800/60 cursor-pointer"
-                            title="Pobierz powiadomienie e-mail w formacie .eml"
-                          >
-                            📧
-                          </button>
-
-                          <button
-                            onClick={() => router.push(`/kaizen/nowy?title=${encodeURIComponent('Kaizen: ' + r.title)}&description=${encodeURIComponent(r.description)}`)}
-                            className="p-2 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-bold transition-all border border-emerald-200 dark:border-emerald-800/60 cursor-pointer"
-                            title="Przekształć zgłoszenie awarii w wniosek Kaizen"
-                          >
-                            💡
-                          </button>
-
-                          {isAdmin && (
-                            <button
-                              onClick={() => handleDelete(r.id)}
-                              className="p-2 bg-red-50 dark:bg-red-950/60 hover:bg-red-100 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold transition-all border border-red-200 dark:border-red-800/60 cursor-pointer"
-                              title="Usuń zgłoszenie awarii"
-                            >
-                              🗑️
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                      {/* Open indicator */}
+                      <td className="p-3 text-center text-slate-300 dark:text-slate-700 text-xs">›</td>
                     </tr>
                   );
                 })}
@@ -354,8 +484,20 @@ export default function UsterkiPage() {
         </div>
       )}
 
-      {modalImage && <ImageModal isOpen={!!modalImage} imageUrl={modalImage} onClose={() => setModalImage(null)} />}
-      
+      {/* Fault Report Drawer */}
+      <FaultReportDrawer
+        report={selectedReport}
+        onClose={() => setSelectedReport(null)}
+        onViewHistory={(r) => {
+          setHistoryTarget({ id: r.id, title: r.title });
+        }}
+        isAdmin={isAdmin}
+        onDelete={handleDelete}
+        onNavigateKaizen={handleNavigateKaizen}
+        onUpdateStatus={handleUpdateStatus}
+        onHoldAndExtend={handleHoldAndExtend}
+      />
+
       {historyTarget && (
         <DocumentAccessHistoryModal
           isOpen={!!historyTarget}

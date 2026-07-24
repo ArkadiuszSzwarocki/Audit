@@ -3,9 +3,11 @@ import { AreaService } from '@/services/AreaService';
 
 const areaService = new AreaService();
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const areas = await areaService.getAllAreas();
+    const { searchParams } = new URL(request.url);
+    const withMachines = searchParams.get('withMachines') === 'true';
+    const areas = await areaService.getAllAreas({ includeMachines: withMachines });
     return NextResponse.json(areas);
   } catch (error) {
     return NextResponse.json({ error: 'Nie udało się pobrać rejonów' }, { status: 500 });

@@ -248,6 +248,7 @@ export function SendAuditEmailModal({
 
     const emlContent = [
       'MIME-Version: 1.0',
+      'X-Unsent: 1',
       `To: ${recipientEmails.trim()}`,
       `Subject: =?UTF-8?B?${b64Subject}?=`,
       'Content-Type: text/html; charset=UTF-8',
@@ -316,7 +317,7 @@ export function SendAuditEmailModal({
               placeholder="np. jan.kowalski@zaklad.pl, kierownik@zaklad.pl"
               value={recipientEmails}
               onChange={(e) => setRecipientEmails(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500"
             />
 
             {usersList.length > 0 && (
@@ -345,7 +346,7 @@ export function SendAuditEmailModal({
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
 
@@ -359,7 +360,7 @@ export function SendAuditEmailModal({
               placeholder="np. Proszę o weryfikację usterek do piątku..."
               value={customNote}
               onChange={(e) => setCustomNote(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
 

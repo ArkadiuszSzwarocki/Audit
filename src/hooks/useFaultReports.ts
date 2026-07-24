@@ -17,6 +17,8 @@ export interface FaultReport {
   notifyEmails: string | null;
   dueDate: string | null;
   createdAt: string;
+  areaId?: string | null;
+  machineId?: string | null;
   area: { id: string; name: string } | null;
   machine: { id: string; name: string } | null;
   assignedTo: { id: string; name: string; email: string | null } | null;

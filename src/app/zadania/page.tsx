@@ -11,6 +11,7 @@ import { useUsers } from '@/hooks/useUsers';
 import { useToast } from '@/context/ToastContext';
 import { useAccessTracker } from '@/hooks/useAccessTracker';
 import { DocumentAccessHistoryModal } from '@/components/ui/DocumentAccessHistoryModal';
+import { TaskDetailModal } from '@/components/ui/TaskDetailModal';
 
 const getNormalizedSeverity = (sev?: string | null): 'CRITICAL' | 'MODERATE' | 'MINOR' => {
   if (!sev) return 'MINOR';
@@ -42,6 +43,7 @@ export default function TasksPage() {
   });
   
   const [activeTask, setActiveTask] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<any | null>(null);
   const [operatorName, setOperatorName] = useState('');
   const [operatorComment, setOperatorComment] = useState('');
   const [fixPhotoUrl, setFixPhotoUrl] = useState<string | null>(null);
@@ -66,8 +68,13 @@ export default function TasksPage() {
 
   useEffect(() => {
     fetchPendingObservations(pendingObservations.length === 0);
-    if (isAdmin) {
-      fetchUsers(false);
+    fetchUsers(false);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const assignedParam = params.get('assigned');
+      if (assignedParam) {
+        setFilterAssigned(assignedParam);
+      }
     }
   }, [fetchPendingObservations, isAdmin, fetchUsers, pendingObservations.length]);
 
@@ -210,9 +217,41 @@ export default function TasksPage() {
 
     // 5. Assignment
     if (filterAssigned) {
-      if (filterAssigned === 'UNASSIGNED' && obs.assignedToId) return false;
-      if (filterAssigned === 'MY_TASKS' && (!user || obs.assignedToId !== user.id)) return false;
-      if (filterAssigned !== 'UNASSIGNED' && filterAssigned !== 'MY_TASKS' && obs.assignedToId !== filterAssigned) return false;
+      if (filterAssigned === 'UNASSIGNED') {
+        if (obs.assignedToId || obs.assignedTo) return false;
+      } else if (filterAssigned === 'MY_TASKS') {
+        if (!user) return false;
+        const cleanUserName = (user.name || '').trim().toLowerCase();
+        const cleanUserLogin = (user.login || '').trim().toLowerCase();
+        const obsAssigneeId = obs.assignedToId || obs.assignedTo?.id;
+        const obsAssigneeName = (obs.assignedTo?.name || '').trim().toLowerCase();
+        const obsAssigneeLogin = (obs.assignedTo?.login || '').trim().toLowerCase();
+
+        const isAdminAccount = isAdmin || user.role === 'ADMIN' || cleanUserName.includes('admin') || cleanUserLogin.includes('admin');
+        const isObsAssigneeAdmin = obsAssigneeName.includes('admin') || obsAssigneeLogin.includes('admin');
+
+        const isMatch =
+          (user.id && obsAssigneeId === user.id) ||
+          (cleanUserName && obsAssigneeName === cleanUserName) ||
+          (cleanUserLogin && obsAssigneeLogin === cleanUserLogin) ||
+          (cleanUserName.length > 2 && obsAssigneeName && (obsAssigneeName.includes(cleanUserName) || cleanUserName.includes(obsAssigneeName))) ||
+          (cleanUserLogin.length > 2 && obsAssigneeLogin && (obsAssigneeLogin.includes(cleanUserLogin) || cleanUserLogin.includes(obsAssigneeLogin))) ||
+          (isAdminAccount && isObsAssigneeAdmin);
+
+        if (!isMatch) return false;
+      } else {
+        const targetUser = users.find((u) => u.id === filterAssigned);
+        const obsAssigneeId = obs.assignedToId || obs.assignedTo?.id;
+        const obsAssigneeName = (obs.assignedTo?.name || '').trim().toLowerCase();
+        const obsAssigneeLogin = (obs.assignedTo?.login || '').trim().toLowerCase();
+
+        const isMatch =
+          obsAssigneeId === filterAssigned ||
+          (targetUser && targetUser.name && obsAssigneeName === targetUser.name.trim().toLowerCase()) ||
+          (targetUser && targetUser.login && obsAssigneeLogin === targetUser.login.trim().toLowerCase());
+
+        if (!isMatch) return false;
+      }
     }
 
     // 6. Due Date Status
@@ -273,10 +312,10 @@ export default function TasksPage() {
 
       {/* Stats Cards */}
       {!loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-4 flex items-center gap-4 shadow-sm">
-            <div className="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-950 flex items-center justify-center shrink-0">
-              <span className="text-2xl">🔴</span>
+            <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+              <span className="text-2xl">📋</span>
             </div>
             <div>
               <div className="text-2xl font-black text-slate-800 dark:text-slate-100 leading-none">{totalCount}</div>
@@ -285,7 +324,7 @@ export default function TasksPage() {
           </div>
           <div className="rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 px-5 py-4 flex items-center gap-4 shadow-sm">
             <div className="w-12 h-12 rounded-xl bg-red-200 dark:bg-red-900/60 flex items-center justify-center shrink-0">
-              <span className="text-2xl">⚠️</span>
+              <span className="text-2xl">🔴</span>
             </div>
             <div>
               <div className="text-2xl font-black text-red-600 dark:text-red-400 leading-none">{criticalCount}</div>
@@ -299,6 +338,15 @@ export default function TasksPage() {
             <div>
               <div className="text-2xl font-black text-amber-600 dark:text-amber-400 leading-none">{moderateCount}</div>
               <div className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mt-1">Umiarkowane</div>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/20 px-5 py-4 flex items-center gap-4 shadow-sm">
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 flex items-center justify-center shrink-0">
+              <span className="text-2xl">🟢</span>
+            </div>
+            <div>
+              <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 leading-none">{minorCount}</div>
+              <div className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mt-1">Drobne / Mało Istotne</div>
             </div>
           </div>
         </div>
@@ -464,12 +512,14 @@ export default function TasksPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px] font-black border-b border-slate-200 dark:border-slate-700">
                 <tr>
-                  <th className="p-3 text-center w-12">#</th>
-                  <th className="p-3">Ważność</th>
-                  <th className="p-3">Treść Zadania i Opis Niezgodności</th>
-                  <th className="p-3">Obszar / Maszyna</th>
-                  <th className="p-3 whitespace-nowrap">Termin i Przedłużenia</th>
-                  <th className="p-3 text-center w-36">Akcje</th>
+                  <th className="p-3 text-center w-10">#</th>
+                  <th className="p-3 w-28">Ważność</th>
+                  <th className="p-3">Treść Zadania</th>
+                  <th className="p-3 w-48 whitespace-nowrap">👤 Przypisany Pracownik</th>
+                  <th className="p-3 whitespace-nowrap w-32">Termin</th>
+                  <th className="p-3 text-center w-10">
+                    <span title="Kliknij wiersz, aby otworzyć szczegóły">ℹ️</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
@@ -483,269 +533,67 @@ export default function TasksPage() {
                   return (
                     <tr
                       key={obs.id}
-                      className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
+                      onClick={() => router.push(`/zadania/${obs.id}`)}
+                      className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer ${
                         normSev === 'CRITICAL' ? 'bg-red-50/30 dark:bg-red-950/20' : ''
-                      } ${isFixing ? 'bg-emerald-50/40 dark:bg-emerald-950/30' : ''}`}
+                      } ${activeTask === obs.id ? 'bg-emerald-50/40 dark:bg-emerald-950/30' : ''}`}
                     >
-                      {/* # Index */}
-                      <td className="p-3 text-center font-bold text-xs text-slate-400">
-                        {idx + 1}
-                      </td>
+                      {/* # */}
+                      <td className="p-3 text-center font-bold text-xs text-slate-400">{idx + 1}</td>
 
                       {/* Severity */}
                       <td className="p-3 whitespace-nowrap">
-                        <span className={`px-2.5 py-1 text-[11px] font-extrabold rounded-lg border ${sevStyle.cls}`}>
+                        <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-md border ${sevStyle.cls}`}>
                           {sevStyle.icon} {displayLabel}
                         </span>
                       </td>
 
-                      {/* Task Content, Description & Inline Completion Form */}
-                      <td className="p-3 max-w-md">
-                        <div className="flex items-start gap-3">
-                          {obs.photoUrl && (
-                            <button
-                              onClick={() => setModalImage(obs.photoUrl!)}
-                              className="shrink-0 cursor-pointer group relative"
-                              title="Kliknij, aby powiększyć zdjęcie z audytu"
-                            >
-                              <img
-                                src={obs.photoUrl}
-                                alt="Zdjęcie z audytu"
-                                className="w-12 h-12 object-cover rounded-xl border border-slate-300 dark:border-slate-700 group-hover:scale-105 transition-transform"
-                              />
-                            </button>
-                          )}
-                          <div className="space-y-1 w-full">
-                            <div className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-snug">
-                              {obs.aiSuggestion || obs.description}
-                            </div>
-                            {obs.aiSuggestion && obs.description !== obs.aiSuggestion && (
-                              <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
-                                Opis: {obs.description}
-                              </p>
-                            )}
-                            
-                            {/* Assigned info & selector */}
-                            <div className="pt-1 flex items-center gap-2 flex-wrap text-xs">
-                              {obs.assignedTo ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 rounded font-semibold text-[11px] border border-brand-200 dark:border-brand-800">
-                                  👤 Przypisany: {obs.assignedTo.name}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400 italic text-[11px]">Nieprzypisane</span>
-                              )}
-
-                              {isAdmin && (
-                                <select
-                                  value={obs.assignedToId || ''}
-                                  onChange={(e) => handleAssign(obs.id, e.target.value)}
-                                  className="text-[11px] px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium outline-none focus:ring-1 focus:ring-brand-500"
-                                >
-                                  <option value="">-- Przypisz --</option>
-                                  {users.map(u => (
-                                    <option key={u.id} value={u.id}>{u.name}</option>
-                                  ))}
-                                </select>
-                              )}
-                            </div>
-
-                            {/* INLINE FIX FORM - Expanded directly under the task report */}
-                            {isFixing && (
-                              <div className="mt-3 p-4 bg-emerald-50/90 dark:bg-emerald-950/50 rounded-2xl border border-emerald-300 dark:border-emerald-800 shadow-md space-y-3 animate-in fade-in duration-200">
-                                <div className="text-xs font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex justify-between items-center">
-                                  <span className="flex items-center gap-1.5">🛠️ Realizacja i naprawa zgłoszenia</span>
-                                  <button
-                                    onClick={() => setActiveTask(null)}
-                                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold text-sm cursor-pointer"
-                                    title="Zamknij formularz"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-
-                                {!user && (
-                                  <div>
-                                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-1">
-                                      Twoje imię i nazwisko (Wykonawca)
-                                    </label>
-                                    <input 
-                                      type="text" 
-                                      autoFocus
-                                      value={operatorName}
-                                      onChange={e => setOperatorName(e.target.value)}
-                                      placeholder="np. Jan Kowalski"
-                                      className="w-full px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium outline-none focus:ring-2 focus:ring-emerald-500"
-                                    />
-                                  </div>
-                                )}
-
-                                <div>
-                                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-1">
-                                    Opis wykonanej pracy / Komentarz
-                                  </label>
-                                  <textarea 
-                                    value={operatorComment}
-                                    onChange={e => setOperatorComment(e.target.value)}
-                                    placeholder="Opisz wykonane naprawy lub usunięte usterki..."
-                                    className="w-full px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium outline-none focus:ring-2 focus:ring-emerald-500 min-h-[50px]"
-                                  />
-                                </div>
-
-                                <div>
-                                  <input 
-                                    type="file" 
-                                    accept="image/*" 
-                                    id={`fix-upload-${obs.id}`}
-                                    className="hidden" 
-                                    onChange={handleFileUpload} 
-                                  />
-                                  <label 
-                                    htmlFor={`fix-upload-${obs.id}`}
-                                    className="cursor-pointer w-full flex items-center justify-center gap-1.5 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                  >
-                                    📷 {isUploading ? 'Przesyłanie...' : (fixPhotoUrl ? 'Zdjęcie po naprawie dodane ✓' : 'Dodaj zdjęcie wykonanej pracy (opcjonalnie)')}
-                                  </label>
-                                </div>
-
-                                <div className="flex gap-2 pt-1">
-                                  <button 
-                                    onClick={() => { setActiveTask(null); setFixPhotoUrl(null); }}
-                                    className="flex-1 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-xs transition-colors cursor-pointer"
-                                  >
-                                    Anuluj
-                                  </button>
-                                  <button 
-                                    onClick={() => handleFixTask(obs.id)}
-                                    disabled={isSubmitting || (!user && !operatorName.trim())}
-                                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-                                  >
-                                    Zatwierdź realizację
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                      {/* Title */}
+                      <td className="p-3">
+                        <div className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-snug line-clamp-2">
+                          {obs.aiSuggestion || obs.description}
                         </div>
-                      </td>
-
-                      {/* Area & Machine */}
-                      <td className="p-3 whitespace-nowrap">
-                        <div className="font-bold text-xs text-slate-800 dark:text-slate-200">
-                          📍 {obs.audit?.area?.name || 'Rejon nieznany'}
-                        </div>
-                        {obs.audit?.machine && (
-                          <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
-                            ⚙️ {obs.audit.machine.name}
+                        {obs.audit?.area && (
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            📍 {obs.audit.area.name}{obs.audit.machine ? ` · ⚙️ ${obs.audit.machine.name}` : ''}
                           </div>
                         )}
                       </td>
 
-                      {/* Due Date & Extensions */}
-                      <td className="p-3 whitespace-nowrap text-xs space-y-1.5">
+                      {/* Assignment Selector */}
+                      <td className="p-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={obs.assignedToId || obs.assignedTo?.id || ''}
+                          onChange={(e) => handleAssign(obs.id, e.target.value)}
+                          className="w-full px-2.5 py-1 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer shadow-xs"
+                        >
+                          <option value="">⚪ Nieprzypisane</option>
+                          {users.map((u: any) => (
+                            <option key={u.id} value={u.id}>
+                              👤 {u.name} ({u.role})
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+
+                      {/* Due date */}
+                      <td className="p-3 whitespace-nowrap text-xs">
                         {obs.dueDate ? (
-                          <div>
-                            <span className={`px-2.5 py-1 text-[11px] font-bold rounded-lg inline-flex items-center gap-1 border ${
-                              isOverdue
-                                ? 'bg-red-100 text-red-800 border-red-300 dark:bg-red-950/80 dark:text-red-300 animate-pulse'
-                                : 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950/80 dark:text-indigo-300'
-                            }`}>
-                              📅 {new Date(obs.dueDate).toLocaleDateString('pl-PL')}
-                              {isOverdue && ' ⚠️ PRZEKROCZONY'}
-                            </span>
-                          </div>
+                          <span className={`px-2 py-0.5 font-bold rounded-md border text-[10px] ${
+                            isOverdue
+                              ? 'bg-red-100 text-red-800 border-red-300 dark:bg-red-950/80 dark:text-red-300'
+                              : 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950/80 dark:text-indigo-300'
+                          }`}>
+                            📅 {new Date(obs.dueDate).toLocaleDateString('pl-PL')}
+                            {isOverdue && ' ⚠️'}
+                          </span>
                         ) : (
-                          <div className="text-slate-400 italic text-[11px]">Brak terminu</div>
-                        )}
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setExtendingObs(obs)}
-                            className="px-2 py-1 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-800 dark:text-amber-300 rounded text-[11px] font-bold transition-all border border-amber-200 dark:border-amber-800/60 cursor-pointer"
-                            title="Przedłuż termin wykonania"
-                          >
-                            ⏳ Przedłuż
-                          </button>
-
-                          {obs.extensions && obs.extensions.length > 0 && (
-                            <button
-                              onClick={() => toggleExtensions(obs.id)}
-                              className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded text-[11px] font-bold transition-all border border-slate-200 dark:border-slate-700 cursor-pointer"
-                              title="Pokaż historię przedłużeń"
-                            >
-                              📜 {obs.extensions.length}
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Extension details inline card */}
-                        {expandedExtensions[obs.id] && obs.extensions && obs.extensions.length > 0 && (
-                          <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg text-[11px] max-w-xs space-y-1">
-                            <div className="font-bold text-amber-900 dark:text-amber-300">Historia przedłużeń:</div>
-                            {obs.extensions.map((ext: any) => (
-                              <div key={ext.id} className="border-b border-amber-200/60 dark:border-amber-900/60 pb-1 last:border-0 last:pb-0">
-                                <div><strong className="text-amber-700 dark:text-amber-400">{new Date(ext.newDueDate).toLocaleDateString('pl-PL')}</strong> ({ext.requestedBy})</div>
-                                <div className="italic text-slate-600 dark:text-slate-400">"{ext.reason}"</div>
-                              </div>
-                            ))}
-                          </div>
+                          <span className="text-slate-400 italic text-[11px]">Brak</span>
                         )}
                       </td>
 
-                      {/* Icon Actions Column */}
-                      <td className="p-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {/* Toggle Fix Form Icon Button */}
-                          <button
-                            onClick={() => {
-                              if (isFixing) {
-                                setActiveTask(null);
-                              } else {
-                                setActiveTask(obs.id);
-                                setOperatorName('');
-                                setOperatorComment('');
-                                setFixPhotoUrl(null);
-                              }
-                            }}
-                            className={`p-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                              isFixing
-                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
-                                : 'bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
-                            }`}
-                            title={isFixing ? 'Zamknij formularz naprawy' : 'Oznacz jako naprawione (otwórz formularz realizacji)'}
-                          >
-                            ✅
-                          </button>
-
-                          {/* Access History Icon Button */}
-                          <button
-                            onClick={() => setHistoryTarget({ id: obs.id, title: obs.aiSuggestion || obs.description })}
-                            className="p-2 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-bold transition-all border border-amber-200 dark:border-amber-800/60 cursor-pointer"
-                            title="Zobacz osoby, które zapoznały się z tym zadaniem"
-                          >
-                            👥
-                          </button>
-
-                          {/* Convert to Kaizen Icon Button */}
-                          <button
-                            onClick={() => router.push(`/kaizen/nowy?title=${encodeURIComponent('Kaizen z audytu: ' + (obs.aiSuggestion || obs.description))}&description=${encodeURIComponent(obs.description)}`)}
-                            className="p-2 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 rounded-xl text-xs font-bold transition-all border border-amber-200 dark:border-amber-800/60 cursor-pointer"
-                            title="Przekształć to zadanie w wniosek Kaizen"
-                          >
-                            💡
-                          </button>
-
-                          {/* Admin Delete Icon Button */}
-                          {isAdmin && (
-                            <button
-                              onClick={() => handleDelete(obs.id)}
-                              className="p-2 bg-red-50 dark:bg-red-950/60 hover:bg-red-100 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold transition-all border border-red-200 dark:border-red-800/60 cursor-pointer"
-                              title="Usuń zadanie produkcyjne"
-                            >
-                              🗑️
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                      {/* Arrow indicator */}
+                      <td className="p-3 text-center text-slate-300 dark:text-slate-700 text-xs">›</td>
                     </tr>
                   );
                 })}
@@ -766,6 +614,27 @@ export default function TasksPage() {
         onClose={() => setExtendingObs(null)}
         currentDueDate={extendingObs?.dueDate}
         onExtend={handleExtendDueDateSubmit}
+      />
+
+      <TaskDetailModal
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onViewHistory={(t) => {
+          setHistoryTarget({ id: t.id, title: (t as any).aiSuggestion || t.description });
+        }}
+        onStartFix={(id) => {
+          setActiveTask(id);
+          setOperatorName('');
+          setOperatorComment('');
+          setFixPhotoUrl(null);
+        }}
+        onExtend={(t) => setExtendingObs(t)}
+        isAdmin={isAdmin}
+        onDelete={handleDelete}
+        onConvertKaizen={(t) => {
+          const obs = t as any;
+          router.push(`/kaizen/nowy?title=${encodeURIComponent('Kaizen z audytu: ' + (obs.aiSuggestion || obs.description))}&description=${encodeURIComponent(obs.description)}`);
+        }}
       />
 
       {historyTarget && (

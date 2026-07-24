@@ -2,19 +2,26 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAudits, Audit } from '@/hooks/useAudits';
 import { useAuth } from '@/hooks/useAuth';
 import { useStructure } from '@/hooks/useStructure';
 import { useToast } from '@/context/ToastContext';
 import { SendAuditEmailModal } from '@/components/ui/SendAuditEmailModal';
+import { AuditDrawer } from '@/components/ui/AuditDrawer';
 
 export default function AuditsPage() {
+  const router = useRouter();
   const { audits, loading, fetchAudits } = useAudits();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const { areas } = useStructure();
   const { showToast } = useToast();
 
+  const isOperatorOrEmployee = user?.role === 'OPERATOR' || user?.role === 'PRACOWNIK';
+  const canSendEmail = isAdmin || (Boolean(user) && !isOperatorOrEmployee);
+
   const [emailModalAudit, setEmailModalAudit] = useState<{ id: string; title: string } | null>(null);
+  const [selectedAudit, setSelectedAudit] = useState<Audit | null>(null);
   const [auditTypes, setAuditTypes] = useState<{id: string, name: string}[]>([]);
   
   // Stany filtrów
@@ -285,9 +292,15 @@ export default function AuditsPage() {
               </div>
             ) : (
               filteredAudits.map(audit => (
-                <div key={audit.id} className={`glass-card flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all border ${
+                <div key={audit.id} className={`glass-card flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all border cursor-pointer hover:border-brand-400 dark:hover:border-brand-600 hover:shadow-md ${
                   selectedAuditIds.includes(audit.id) ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-900/10' : 'border-slate-200 dark:border-slate-800'
-                }`}>
+                }`}
+                  onClick={(e) => {
+                    const target = e.target as HTMLElement;
+                    if (target.closest('input[type="checkbox"]') || target.closest('button') || target.closest('a')) return;
+                    router.push(`/audyty/${audit.id}`);
+                  }}
+                >
                   <div className="flex items-start gap-4">
                     <input 
                       type="checkbox"
@@ -343,16 +356,18 @@ export default function AuditsPage() {
                     </span>
 
                     {/* Email Icon Button */}
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setEmailModalAudit({ id: audit.id, title: audit.title });
-                      }}
-                      className="p-2 bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-bold rounded-xl transition-all cursor-pointer"
-                      title="Wyślij e-mail z raportem audytu"
-                    >
-                      📧
-                    </button>
+                    {canSendEmail && (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setEmailModalAudit({ id: audit.id, title: audit.title });
+                        }}
+                        className="p-2 bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                        title="Wyślij e-mail z raportem audytu"
+                      >
+                        📧
+                      </button>
+                    )}
 
                     {/* Open Audit Icon Link Button */}
                     <Link 
@@ -380,6 +395,16 @@ export default function AuditsPage() {
         />
       )}
 
+      {/* Audit Drawer */}
+      <AuditDrawer
+        audit={selectedAudit}
+        onClose={() => setSelectedAudit(null)}
+        canSendEmail={canSendEmail}
+        onSendEmail={(a) => {
+          setSelectedAudit(null);
+          setEmailModalAudit({ id: a.id, title: a.title });
+        }}
+      />
       {/* Szablon Drukarski dla Masowego Wydruku Zaznaczonych Audytów */}
       <div className="hidden print:block p-8 bg-white text-black font-sans max-w-4xl mx-auto space-y-8">
         <div className="border-b-2 border-black pb-4 text-center">

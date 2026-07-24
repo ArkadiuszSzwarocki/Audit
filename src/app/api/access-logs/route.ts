@@ -19,20 +19,11 @@ export async function GET(req: NextRequest) {
       where.entityId = entityId;
     }
 
-    let logs = await prisma.accessLog.findMany({
+    const logs = await prisma.accessLog.findMany({
       where,
       orderBy: { openedAt: 'desc' },
       take: 300,
     });
-
-    // Fallback: Jeśli zapytanie dla konkretnego entityId nie zwróciło jeszcze wpisów, zwróć wpisy dla entityType
-    if (logs.length === 0 && entityType && entityId) {
-      logs = await prisma.accessLog.findMany({
-        where: { entityType },
-        orderBy: { openedAt: 'desc' },
-        take: 300,
-      });
-    }
 
     return NextResponse.json(logs);
   } catch (error: any) {

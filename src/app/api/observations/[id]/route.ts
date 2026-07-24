@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server';
 import { ObservationService } from '@/services/ObservationService';
 
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const resolvedParams = await params;
+    const service = new ObservationService();
+    const obs = await service.getObservationById(resolvedParams.id);
+    if (!obs) {
+      return NextResponse.json({ error: 'Nie znaleziono zadania produkcyjnego' }, { status: 404 });
+    }
+    return NextResponse.json(obs);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const resolvedParams = await params;
@@ -17,12 +31,32 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json(obs);
     }
 
+    if (body.action === 'fix') {
+      const obs = await service.fixObservation(resolvedParams.id, {
+        fixedBy: body.fixedBy || 'Operator',
+        fixPhotoUrl: body.fixPhotoUrl,
+        operatorComment: body.operatorComment,
+      });
+      return NextResponse.json(obs);
+    }
+
     if (body.assignedToId !== undefined) {
       const obs = await service.assignObservation(resolvedParams.id, body.assignedToId || null);
       return NextResponse.json(obs);
     }
     
     return NextResponse.json({ error: 'Nieprawidłowe dane do aktualizacji' }, { status: 400 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const resolvedParams = await params;
+    const service = new ObservationService();
+    await service.deleteObservation(resolvedParams.id);
+    return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

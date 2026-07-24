@@ -11,7 +11,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, role } = body;
+    const { name, email, role, bhpTrainingDueDate } = body;
 
     const targetUser = await prisma.user.findUnique({ where: { id } });
     if (!targetUser) {
@@ -43,9 +43,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       where: { id },
       data: {
         name: name !== undefined ? name : targetUser.name,
+        email: email !== undefined ? (email?.trim() || null) : targetUser.email,
         role: role !== undefined ? role : targetUser.role,
+        bhpTrainingDueDate: bhpTrainingDueDate !== undefined ? (bhpTrainingDueDate ? new Date(bhpTrainingDueDate) : null) : targetUser.bhpTrainingDueDate,
       },
-      select: { id: true, login: true, name: true, role: true }
+      select: { id: true, login: true, name: true, email: true, role: true, bhpTrainingDueDate: true }
     });
 
     return NextResponse.json(updatedUser);

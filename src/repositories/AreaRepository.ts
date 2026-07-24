@@ -2,8 +2,9 @@ import { prisma } from '../config/db';
 import { Area } from '@/generated/prisma/client';
 
 export class AreaRepository {
-  async findAll(): Promise<Area[]> {
+  async findAll(options?: { includeMachines?: boolean }): Promise<any[]> {
     return prisma.area.findMany({
+      include: options?.includeMachines ? { machines: { select: { id: true, name: true }, orderBy: { name: 'asc' } } } : undefined,
       orderBy: { name: 'asc' }
     });
   }

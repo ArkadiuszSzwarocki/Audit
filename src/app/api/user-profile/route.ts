@@ -63,23 +63,61 @@ export async function GET() {
       },
     });
 
-    // 3. Count submitted Kaizens & sum earned points
-    const userKaizens = await prisma.kaizen.findMany({
-      where: {
-        submittedBy: user.name,
-      },
+    // 3. Count submitted Kaizens & sum earned points with flexible case-insensitive submitter matching
+    const allUserKaizens = await prisma.kaizen.findMany({
       select: {
+        id: true,
+        title: true,
+        submittedBy: true,
         status: true,
         pointsAwarded: true,
+        isPaidOut: true,
       },
     });
 
-    const submittedKaizensCount = userKaizens.length;
-    const userPoints = userKaizens
-      .filter(k => k.status === 'APPROVED')
-      .reduce((sum, k) => sum + (k.pointsAwarded || 0), 0);
+    const cleanName = (user.name || '').trim().toLowerCase();
+    const cleanLogin = (user.login || '').trim().toLowerCase();
 
-    // 4. Determine rank title
+    const userKaizens = allUserKaizens.filter(k => {
+      const sb = (k.submittedBy || '').trim().toLowerCase();
+      if (!sb) return false;
+      return (
+        sb === cleanName ||
+        sb === cleanLogin ||
+        (cleanName.length > 2 && sb.includes(cleanName)) ||
+        (cleanName.length > 2 && cleanName.includes(sb)) ||
+        (cleanLogin.length > 2 && sb.includes(cleanLogin)) ||
+        (cleanLogin.length > 2 && cleanLogin.includes(sb))
+      );
+    });
+
+    const getKaizenRewardAmount = (pts: number) => {
+      if (!pts || pts <= 0) return 0;
+      if (pts <= 5) return 10;
+      if (pts <= 10) return 50;
+      if (pts <= 15) return 100;
+      return 150;
+    };
+
+    const submittedKaizensCount = userKaizens.length;
+    const approvedKaizens = userKaizens.filter(k => k.status === 'APPROVED');
+    const approvedKaizensCount = approvedKaizens.length;
+    const userPoints = approvedKaizens.reduce((sum, k) => sum + (k.pointsAwarded || 0), 0);
+
+    // Unpaid (claimable) vs Paid Out
+    const unpaidKaizens = approvedKaizens.filter(k => !k.isPaidOut);
+    const unpaidKaizensCount = unpaidKaizens.length;
+    const unpaidPoints = unpaidKaizens.reduce((sum, k) => sum + (k.pointsAwarded || 0), 0);
+    const estimatedCashReward = unpaidKaizens.reduce((sum, k) => sum + getKaizenRewardAmount(k.pointsAwarded || 0), 0);
+
+    const paidOutKaizens = approvedKaizens.filter(k => k.isPaidOut);
+    const paidOutCashReward = paidOutKaizens.reduce((sum, k) => sum + getKaizenRewardAmount(k.pointsAwarded || 0), 0);
+
+    // 4. Check if Kaizen Scoring is enabled globally
+    const kaizenGoal = await prisma.kaizenGoal.findFirst();
+    const isScoringEnabled = kaizenGoal?.isScoringEnabled ?? false;
+
+    // Determine rank title
     let rankTitle = '🌱 Początkujący Innowator';
     if (userPoints >= 300) {
       rankTitle = '🏆 Mistrz Kaizen & Lean';
@@ -91,13 +129,34 @@ export async function GET() {
       rankTitle = '🥉 Brązowy Udoskonalacz';
     }
 
+    const dbUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: user.id },
+          { login: user.login },
+        ]
+      },
+      select: {
+        bhpTrainingDueDate: true,
+        dismissedBhpNoticeThreshold: true,
+      }
+    });
+
     return NextResponse.json({
       user,
       assignedTasksCount,
       assignedFaultsCount,
       submittedKaizensCount,
+      approvedKaizensCount,
+      unpaidKaizensCount,
       userPoints,
+      unpaidPoints,
+      estimatedCashReward,
+      paidOutCashReward,
       rankTitle,
+      isScoringEnabled,
+      bhpTrainingDueDate: dbUser?.bhpTrainingDueDate || null,
+      dismissedBhpNoticeThreshold: dbUser?.dismissedBhpNoticeThreshold ?? null,
     });
   } catch (error: any) {
     console.error('GET /api/user-profile Error:', error);

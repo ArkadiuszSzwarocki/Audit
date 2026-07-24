@@ -22,6 +22,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     if (body.action === 'resolve') {
       report = await service.markResolved(id, body.fixedBy ?? 'Operator', body.fixPhotoUrl, body.operatorComment);
+    } else if (body.action === 'hold_and_extend') {
+      if (!body.newDueDate || !body.reason) {
+        return NextResponse.json({ error: 'Wymagana jest nowa data oraz powód przedłużenia' }, { status: 400 });
+      }
+      report = await service.holdAndExtend(id, new Date(body.newDueDate), body.reason);
     } else if (body.action === 'assign') {
       report = await service.assignTo(id, body.assignedToId);
     } else if (body.status) {

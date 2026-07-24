@@ -14,6 +14,23 @@ export class ObservationRepository {
     });
   }
 
+  async findById(id: string) {
+    return prisma.observation.findUnique({
+      where: { id },
+      include: {
+        audit: {
+          include: { area: true, machine: true }
+        },
+        assignedTo: {
+          select: { id: true, name: true, login: true, email: true }
+        },
+        extensions: {
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    });
+  }
+
   async findPending(): Promise<(Observation & { audit: any; assignedTo?: any; extensions?: any[] })[]> {
     return prisma.observation.findMany({
       where: {
@@ -30,7 +47,7 @@ export class ObservationRepository {
           include: { area: true, machine: true }
         },
         assignedTo: {
-          select: { id: true, name: true }
+          select: { id: true, name: true, login: true }
         },
         extensions: {
           orderBy: { createdAt: 'desc' }

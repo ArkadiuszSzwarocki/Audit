@@ -8,8 +8,11 @@ const adapter = new PrismaLibSql({ url: 'file:./dev.db' });
 export function getPrismaClient(): PrismaClient {
   if (
     !globalForPrisma.prisma ||
+    process.env.NODE_ENV !== 'production' ||
     !(globalForPrisma.prisma as any).auditTypeQuestion ||
-    !(globalForPrisma.prisma as any).kaizenScoringCategory
+    !(globalForPrisma.prisma as any).kaizenScoringCategory ||
+    !(globalForPrisma.prisma as any).bhpHazardReport ||
+    !(globalForPrisma.prisma as any).qualityReport
   ) {
     globalForPrisma.prisma = new PrismaClient({
       adapter,

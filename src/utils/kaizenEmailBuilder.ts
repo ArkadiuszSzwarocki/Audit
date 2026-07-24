@@ -110,6 +110,7 @@ export function downloadKaizenEml(data: KaizenEmailData, toEmails: string, baseU
   const b64Subject = btoa(unescape(encodeURIComponent(subject)));
   const emlContent = [
     'MIME-Version: 1.0',
+    'X-Unsent: 1',
     `To: ${toEmails}`,
     `Subject: =?UTF-8?B?${b64Subject}?=`,
     'Content-Type: text/html; charset=UTF-8',

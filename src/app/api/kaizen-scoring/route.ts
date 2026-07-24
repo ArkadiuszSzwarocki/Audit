@@ -1,47 +1,39 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/config/db';
-import { checkIsAdmin } from '@/lib/auth';
+import { getAuthSession } from '@/lib/auth';
 
 const DEFAULT_CATEGORIES = [
   {
-    name: '⚡ Oszczędność Czasu / Wydajność',
-    description: 'Skrócenie czasu trwania czynności, zamiana długiego procesu w krótki lub przezbrojenie stanowiska.',
-    minPoints: 10,
-    maxPoints: 100,
-    icon: '⚡',
-    color: 'amber',
-  },
-  {
-    name: '💰 Realne Oszczędności Finansowe',
-    description: 'Redukcja strat surowcowych, energii, komponentów lub bezpośrenich kosztów eksploatacji.',
-    minPoints: 20,
-    maxPoints: 150,
-    icon: '💰',
-    color: 'emerald',
-  },
-  {
-    name: '🧹 Ergonomia & 5S (Organizacja)',
-    description: 'Uporządkowanie stanowiska pracy, lepsze oznakowanie, łatwiejszy i bezpieczniejszy dostęp do narzędzi.',
-    minPoints: 5,
-    maxPoints: 30,
-    icon: '🧹',
-    color: 'blue',
-  },
-  {
-    name: '🛡️ Bezpieczeństwo & HACCP (Jakość)',
-    description: 'Eliminacja ryzyka wypadku, skażenia krzyżowego, spełnienie wymogów sanitarnych i jakościowych.',
-    minPoints: 15,
-    maxPoints: 60,
+    name: '🛡️ Kryterium 1: Wpływ na Bezpieczeństwo i Jakość (w tym Jakość Żywności)',
+    description: '0 pkt - Brak wpływu | 1 pkt - Estetyka/5S | 3 pkt - Usprawnienie procesów/zmniejszenie ryzyka | 5 pkt - Eliminacja krytycznego ryzyka/ciała obcego',
+    minPoints: 0,
+    maxPoints: 5,
     icon: '🛡️',
     color: 'purple',
   },
   {
-    name: '💡 Inne Udoskonalenie Procesowe',
-    description: 'Pozostałe drobne innowacje i ulepszenia codziennej pracy.',
-    minPoints: 5,
-    maxPoints: 25,
-    icon: '💡',
-    color: 'amber',
+    name: '⛑️ Kryterium 2: Wpływ na BHP i Ergonomię',
+    description: '0 pkt - Brak wpływu | 1 pkt - Komfort pracy | 3 pkt - Wyraźna poprawa ergonomii | 5 pkt - Eliminacja zagrożenia wypadkiem/chorobą',
+    minPoints: 0,
+    maxPoints: 5,
+    icon: '⛑️',
+    color: 'red',
+  },
+  {
+    name: '⚡ Kryterium 3: Efektywność, Oszczędność i Redukcja Marnotrawstwa (Muda)',
+    description: '0 pkt - Brak oszczędności | 1 pkt - Drobne oszczędności materiałowe | 3 pkt - Skrócenie przezbrojenia/automatyzacja | 5 pkt - Duża redukcja kosztów/wydajność',
+    minPoints: 0,
+    maxPoints: 5,
+    icon: '⚡',
+    color: 'emerald',
+  },
+  {
+    name: '🛠️ Kryterium 4: Łatwość i Koszt Wdrożenia',
+    description: '0 pkt - Bardzo drogie/zewnętrzne | 1 pkt - Czas i zakupy | 3 pkt - Niskie koszty/wewnętrzne UR | 5 pkt - Bezkosztowe od ręki',
+    minPoints: 0,
+    maxPoints: 5,
+    icon: '🛠️',
+    color: 'blue',
   },
 ];
 
@@ -82,9 +74,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const isAdmin = await checkIsAdmin();
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Brak uprawnień administratora' }, { status: 403 });
+    const session = await getAuthSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Niezalogowany — brak uprawnień' }, { status: 401 });
     }
 
     const body = await request.json();
@@ -119,6 +111,28 @@ export async function POST(request: Request) {
       }
     }
 
+    if (action === 'toggle_scoring') {
+      const existingGoal = await prisma.kaizenGoal.findFirst();
+      const nextState = Boolean(body.isScoringEnabled);
+      if (existingGoal) {
+        const updatedGoal = await prisma.kaizenGoal.update({
+          where: { id: existingGoal.id },
+          data: { isScoringEnabled: nextState },
+        });
+        return NextResponse.json({ goal: updatedGoal });
+      } else {
+        const createdGoal = await prisma.kaizenGoal.create({
+          data: {
+            title: 'Miesięczny Cel Kaizen Zespołu',
+            targetPoints: 500,
+            period: 'MONTHLY',
+            isScoringEnabled: nextState,
+          },
+        });
+        return NextResponse.json({ goal: createdGoal });
+      }
+    }
+
     if (action === 'save_goal') {
       const existingGoal = await prisma.kaizenGoal.findFirst();
       if (existingGoal) {
@@ -129,6 +143,7 @@ export async function POST(request: Request) {
             targetPoints: Number(goal.targetPoints) || 500,
             period: goal.period || 'MONTHLY',
             rewardInfo: goal.rewardInfo,
+            isScoringEnabled: typeof goal.isScoringEnabled === 'boolean' ? goal.isScoringEnabled : existingGoal.isScoringEnabled,
           },
         });
         return NextResponse.json({ goal: updatedGoal });
@@ -139,6 +154,7 @@ export async function POST(request: Request) {
             targetPoints: Number(goal.targetPoints) || 500,
             period: goal.period || 'MONTHLY',
             rewardInfo: goal.rewardInfo,
+            isScoringEnabled: Boolean(goal.isScoringEnabled),
           },
         });
         return NextResponse.json({ goal: createdGoal });
@@ -154,9 +170,9 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const isAdmin = await checkIsAdmin();
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Brak uprawnień administratora' }, { status: 403 });
+    const session = await getAuthSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Niezalogowany — brak uprawnień' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);

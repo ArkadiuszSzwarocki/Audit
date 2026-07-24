@@ -19,6 +19,14 @@ export async function GET() {
     });
 
     const openFaultReportsCount = await prisma.faultReport.count({
+      where: { status: { in: ['OPEN', 'IN_PROGRESS', 'HOLD'] } }
+    });
+
+    const openBhpHazardsCount = await prisma.bhpHazardReport.count({
+      where: { status: { in: ['OPEN', 'IN_PROGRESS'] } }
+    });
+
+    const openQualityReportsCount = await prisma.qualityReport.count({
       where: { status: { in: ['OPEN', 'IN_PROGRESS'] } }
     });
 
@@ -26,8 +34,10 @@ export async function GET() {
       pendingKaizens: pendingKaizenCount,
       pendingTasks: pendingTasksCount,
       openFaultReports: openFaultReportsCount,
+      openBhpHazards: openBhpHazardsCount,
+      openQualityReports: openQualityReportsCount,
     });
   } catch (error: any) {
-    return NextResponse.json({ pendingKaizens: 0, pendingTasks: 0, openFaultReports: 0 });
+    return NextResponse.json({ pendingKaizens: 0, pendingTasks: 0, openFaultReports: 0, openBhpHazards: 0, openQualityReports: 0 });
   }
 }

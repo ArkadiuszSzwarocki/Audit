@@ -22,11 +22,13 @@ export default function NowaUsterkaPage() {
   const { showToast } = useToast();
 
   const [areas, setAreas] = useState<Area[]>([]);
+  const [machinesList, setMachinesList] = useState<{ id: string; name: string }[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [reportedBy, setReportedBy] = useState('');
   const [severity, setSeverity] = useState('MODERATE');
   const [areaId, setAreaId] = useState('');
   const [machineId, setMachineId] = useState('');
@@ -36,8 +38,11 @@ export default function NowaUsterkaPage() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  const selectedArea = areas.find(a => a.id === areaId);
-  const machines = selectedArea?.machines ?? [];
+  useEffect(() => {
+    if (user && !reportedBy) {
+      setReportedBy(user.name || user.login || '');
+    }
+  }, [user, reportedBy]);
 
   useEffect(() => {
     fetch('/api/areas?withMachines=true')
@@ -50,11 +55,28 @@ export default function NowaUsterkaPage() {
       .then(data => {
         if (Array.isArray(data)) {
           setUsers(data);
-          // Pre-fill notify emails from assigned user
         }
       })
       .catch(console.error);
   }, []);
+
+  // Fetch machines when areaId changes
+  useEffect(() => {
+    if (!areaId) {
+      setMachinesList([]);
+      setMachineId('');
+      return;
+    }
+    const selectedArea = areas.find(a => a.id === areaId);
+    if (selectedArea?.machines && selectedArea.machines.length > 0) {
+      setMachinesList(selectedArea.machines);
+    } else {
+      fetch(`/api/machines?areaId=${areaId}`)
+        .then(r => r.json())
+        .then(data => setMachinesList(Array.isArray(data) ? data : []))
+        .catch(() => setMachinesList([]));
+    }
+  }, [areaId, areas]);
 
   // Auto-fill notify email when assignedTo changes
   useEffect(() => {
@@ -105,7 +127,7 @@ export default function NowaUsterkaPage() {
           title: title.trim(),
           description: description.trim(),
           severity,
-          reportedBy: user?.name ?? 'Anonimowy',
+          reportedBy: reportedBy.trim() || user?.name || user?.login || 'Anonimowy',
           photoUrl,
           notifyEmails: notifyEmails.trim() || null,
           dueDate: dueDate || null,
@@ -124,7 +146,7 @@ export default function NowaUsterkaPage() {
         const baseUrl = window.location.origin;
         const assignedUser = users.find(u => u.id === assignedToId);
         const area = areas.find(a => a.id === areaId);
-        const machine = machines.find(m => m.id === machineId);
+        const machine = machinesList.find(m => m.id === machineId);
 
         downloadFaultReportEml(
           {
@@ -201,6 +223,21 @@ export default function NowaUsterkaPage() {
           </div>
         </div>
 
+        {/* ReportedBy */}
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+            Zgłaszający (Imię i Nazwisko z loginu) *
+          </label>
+          <input
+            type="text"
+            required
+            placeholder="Jan Kowalski"
+            value={reportedBy}
+            onChange={e => setReportedBy(e.target.value)}
+            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500 font-bold"
+          />
+        </div>
+
         {/* Title */}
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
@@ -212,7 +249,7 @@ export default function NowaUsterkaPage() {
             placeholder="np. Wyciek oleju przy maszynie CNC-3"
             value={title}
             onChange={e => setTitle(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
+            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
 
@@ -227,7 +264,7 @@ export default function NowaUsterkaPage() {
             placeholder="Opisz dokładnie co się dzieje, gdzie i od kiedy..."
             value={description}
             onChange={e => setDescription(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
+            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
 
@@ -240,7 +277,7 @@ export default function NowaUsterkaPage() {
             <select
               value={areaId}
               onChange={e => { setAreaId(e.target.value); setMachineId(''); }}
-              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
             >
               <option value="">— wybierz —</option>
               {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -254,40 +291,30 @@ export default function NowaUsterkaPage() {
               value={machineId}
               onChange={e => setMachineId(e.target.value)}
               disabled={!areaId}
-              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
+              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
             >
               <option value="">— wybierz maszynę —</option>
-              {machines.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              {machinesList.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </div>
         </div>
 
-        {/* Assigned + Due Date */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-              Przypisz do osoby
-            </label>
-            <select
-              value={assignedToId}
-              onChange={e => setAssignedToId(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
-            >
-              <option value="">— nieprzypisane —</option>
-              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-              Termin naprawy
-            </label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={e => setDueDate(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
-            />
-          </div>
+        {/* Assigned User */}
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+            Przypisz do osoby (Utrzymanie Ruchu / Mechanik)
+          </label>
+          <select
+            value={assignedToId}
+            onChange={e => setAssignedToId(e.target.value)}
+            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="">— wyznaczenie osoby lub wybór z listy —</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+          <p className="text-[11px] text-slate-400 mt-1">
+            ℹ️ Termin realizacji naprawy zostanie określony przez przypisaną osobę / mechanika.
+          </p>
         </div>
 
         <ImageUploadWithCamera
@@ -306,8 +333,42 @@ export default function NowaUsterkaPage() {
             placeholder="np. kierownik@zaklad.pl, serwis@zaklad.pl"
             value={notifyEmails}
             onChange={e => setNotifyEmails(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
+            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
           />
+          {/* Quick-select registered user emails */}
+          {users.some(u => u.email) && (
+            <div className="mt-2 space-y-1">
+              <span className="text-[11px] font-bold text-slate-500 block">Szybkie dodawanie z bazy pracowników:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {users.filter(u => u.email).map(u => {
+                  const isSelected = notifyEmails.includes(u.email!);
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => {
+                        setNotifyEmails(prev => {
+                          const list = prev.split(',').map(e => e.trim()).filter(Boolean);
+                          if (list.includes(u.email!)) {
+                            return list.filter(e => e !== u.email!).join(', ');
+                          }
+                          return [...list, u.email!].join(', ');
+                        });
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+                        isSelected
+                          ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-brand-400'
+                      }`}
+                    >
+                      {isSelected ? '✓ ' : '+ '} {u.name} ({u.email})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {notifyEmails.trim() && (
             <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 font-medium">
               ✅ Po zapisaniu zostanie automatycznie pobrany plik .eml — otwórz go w Outlooku i wyślij.

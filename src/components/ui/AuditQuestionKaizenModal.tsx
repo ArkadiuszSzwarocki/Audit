@@ -148,7 +148,7 @@ export function AuditQuestionKaizenModal({
                 value={submittedBy}
                 onChange={(e) => setSubmittedBy(e.target.value)}
                 placeholder="Imię i Nazwisko pracownika"
-                className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-bold focus:ring-2 focus:ring-amber-500 outline-none"
+                className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 text-xs font-bold focus:ring-2 focus:ring-amber-500 outline-none"
               />
               {usersList.length > 0 && (
                 <select
@@ -179,7 +179,7 @@ export function AuditQuestionKaizenModal({
               value={benefits}
               onChange={(e) => setBenefits(e.target.value)}
               placeholder="np. Oszczędność czasu 15 minut na zmianę, usprawnienie ergonomii stanowiska i wyeliminowanie ryzyka zanieczyszczenia."
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-medium focus:ring-2 focus:ring-amber-500 outline-none"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 text-xs font-medium focus:ring-2 focus:ring-amber-500 outline-none"
             />
           </div>
 

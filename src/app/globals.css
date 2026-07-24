@@ -37,6 +37,22 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+@layer base {
+  input, textarea, select {
+    color: var(--foreground);
+  }
+
+  ::placeholder {
+    color: #64748b; /* slate-500 for crisp placeholder in light mode */
+    opacity: 1;
+  }
+
+  .dark ::placeholder {
+    color: #94a3b8; /* slate-400 for crisp placeholder in dark mode */
+    opacity: 1;
+  }
+}
+
 @layer utilities {
   .glass {
     @apply bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-white/20 dark:border-slate-800/50 shadow-xl;

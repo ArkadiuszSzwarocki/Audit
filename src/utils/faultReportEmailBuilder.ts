@@ -140,6 +140,7 @@ export function buildFaultReportEml(data: FaultReportEmailData, toEmails: string
   const b64Subject = btoa(unescape(encodeURIComponent(subject)));
   return [
     'MIME-Version: 1.0',
+    'X-Unsent: 1',
     `To: ${toEmails}`,
     `Subject: =?UTF-8?B?${b64Subject}?=`,
     'Content-Type: text/html; charset=UTF-8',
