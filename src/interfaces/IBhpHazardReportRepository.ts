@@ -16,6 +16,12 @@ export interface BhpHazardReportWithRelations {
   areaId: string | null;
   machineId: string | null;
   assignedToId: string | null;
+  // Risk Assessment Fields
+  hazardCategory: string | null;
+  probability: number | null;
+  injurySeverity: number | null;
+  riskScore: number | null;
+  riskLevel: string | null;
   createdAt: Date;
   updatedAt: Date;
   area?: { id: string; name: string } | null;
@@ -47,6 +53,11 @@ export interface IBhpHazardReportRepository {
     fixedAt: Date;
     fixPhotoUrl: string;
     actionTaken: string;
+    hazardCategory: string;
+    probability: number;
+    injurySeverity: number;
+    riskScore: number;
+    riskLevel: string;
   }>): Promise<BhpHazardReportWithRelations>;
   delete(id: string): Promise<void>;
   countOpen(): Promise<number>;

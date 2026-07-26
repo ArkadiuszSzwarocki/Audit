@@ -20,6 +20,12 @@ export interface BhpHazardReport {
   areaId?: string | null;
   machineId?: string | null;
   assignedToId?: string | null;
+  // Risk Assessment Fields
+  hazardCategory?: string | null;
+  probability?: number | null;
+  injurySeverity?: number | null;
+  riskScore?: number | null;
+  riskLevel?: string | null;
   createdAt: string;
   updatedAt: string;
   area?: { id: string; name: string } | null;
@@ -67,11 +73,25 @@ export function useBhpHazardReports() {
     return created;
   }, []);
 
-  const resolveReport = useCallback(async (id: string, fixPhotoUrl?: string, actionTaken?: string): Promise<BhpHazardReport> => {
+  const resolveReport = useCallback(async (
+    id: string,
+    fixPhotoUrl?: string,
+    actionTaken?: string,
+    hazardCategory?: string,
+    probability?: number,
+    injurySeverity?: number
+  ): Promise<BhpHazardReport> => {
     const res = await fetch(`/api/bhp/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'resolve', fixPhotoUrl, actionTaken }),
+      body: JSON.stringify({
+        action: 'resolve',
+        fixPhotoUrl,
+        actionTaken,
+        hazardCategory,
+        probability,
+        injurySeverity,
+      }),
     });
     if (!res.ok) {
       const json = await res.json();

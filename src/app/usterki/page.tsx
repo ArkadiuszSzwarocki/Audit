@@ -413,6 +413,7 @@ export default function UsterkiPage() {
                   <th className="p-3 text-center w-10">#</th>
                   <th className="p-3 w-40">Ważność / Status</th>
                   <th className="p-3">Tytuł Zgłoszenia</th>
+                  <th className="p-3 whitespace-nowrap w-40">Przypisano do</th>
                   <th className="p-3 whitespace-nowrap w-32">Data</th>
                   <th className="p-3 text-center w-10">
                     <span title="Kliknij wiersz, aby otworzyć szczegóły">ℹ️</span>
@@ -461,7 +462,14 @@ export default function UsterkiPage() {
                           </div>
                         )}
                       </td>
-
+                      {/* Assigned To */}
+                      <td className="p-3 whitespace-nowrap text-xs">
+                        {r.assignedTo ? (
+                          <span className="font-bold text-red-700 dark:text-red-300">🔧 {r.assignedTo.name}</span>
+                        ) : (
+                          <span className="text-slate-400 italic">Nie przypisano</span>
+                        )}
+                      </td>
                       {/* Date */}
                       <td className="p-3 whitespace-nowrap text-xs text-slate-500">
                         {new Date(r.createdAt).toLocaleDateString('pl-PL')}

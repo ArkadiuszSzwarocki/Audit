@@ -205,6 +205,7 @@ export default function QualityReportsPage() {
                   <th className="p-3 text-center w-10">#</th>
                   <th className="p-3 w-52">Kategoria / Priorytet</th>
                   <th className="p-3">Tytuł & Nr Partii</th>
+                  <th className="p-3 whitespace-nowrap w-40">Osoba Odpowiedzialna</th>
                   <th className="p-3 whitespace-nowrap w-32">Status</th>
                   <th className="p-3 whitespace-nowrap w-36">Termin CAPA</th>
                   <th className="p-3 text-center w-10">ℹ️</th>
@@ -243,6 +244,14 @@ export default function QualityReportsPage() {
                           {r.batchNumber && <span>🏷️ Nr partii: {r.batchNumber}</span>}
                           {r.quantityAffected && <span>⚖️ Ilość: {r.quantityAffected}</span>}
                         </div>
+                      </td>
+
+                      <td className="p-3 whitespace-nowrap text-xs">
+                        {r.assignedTo ? (
+                          <span className="font-bold text-purple-700 dark:text-purple-300">🔬 {r.assignedTo.name}</span>
+                        ) : (
+                          <span className="text-slate-400 italic">Nie przypisano</span>
+                        )}
                       </td>
 
                       <td className="p-3 whitespace-nowrap">

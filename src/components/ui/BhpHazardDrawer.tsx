@@ -40,7 +40,14 @@ interface BhpHazardDrawerProps {
   isAdmin: boolean;
   onDelete: (id: string) => void;
   onNavigateKaizen: (r: BhpHazardReport) => void;
-  onUpdateStatus?: (id: string, status: string, actionTaken?: string) => Promise<void>;
+  onUpdateStatus?: (
+    id: string,
+    status: string,
+    actionTaken?: string,
+    hazardCategory?: string,
+    probability?: number,
+    injurySeverity?: number
+  ) => Promise<void>;
 }
 
 function AccessTrackerForReport({ report }: { report: BhpHazardReport }) {
@@ -81,9 +88,9 @@ export function BhpHazardDrawer({
     return () => { document.body.style.overflow = ''; };
   }, [report]);
 
-  const handleConfirmResolve = async (actionTaken?: string) => {
+  const handleConfirmResolve = async (actionTaken?: string, hazardCategory?: string, probability?: number, injurySeverity?: number) => {
     if (!report || !onUpdateStatus) return;
-    await onUpdateStatus(report.id, 'RESOLVED', actionTaken);
+    await onUpdateStatus(report.id, 'RESOLVED', actionTaken, hazardCategory, probability, injurySeverity);
   };
 
   const handleConfirmSendEmail = (emailToUse: string) => {

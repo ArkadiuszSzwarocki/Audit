@@ -21,7 +21,30 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     let report;
 
     if (body.action === 'resolve') {
-      report = await service.markResolved(id, body.fixedBy ?? 'Inspektor BHP / Operator', body.fixPhotoUrl, body.actionTaken);
+      // Calculate risk score
+      const riskScore = body.probability && body.injurySeverity 
+        ? body.probability * body.injurySeverity 
+        : null;
+      
+      const riskLevel = riskScore
+        ? riskScore >= 1 && riskScore <= 6
+          ? 'LOW'
+          : riskScore >= 8 && riskScore <= 14
+          ? 'MEDIUM'
+          : 'HIGH'
+        : null;
+
+      report = await service.markResolved(
+        id,
+        body.fixedBy ?? 'Inspektor BHP / Operator',
+        body.fixPhotoUrl,
+        body.actionTaken,
+        body.hazardCategory,
+        body.probability,
+        body.injurySeverity,
+        riskScore,
+        riskLevel
+      );
     } else if (body.action === 'assign') {
       report = await service.assignTo(id, body.assignedToId);
     } else if (body.status) {

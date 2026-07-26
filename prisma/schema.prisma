@@ -241,7 +241,7 @@ model User {
   assignedFaultReports     FaultReport[]
   assignedBhpHazardReports BhpHazardReport[]
   assignedQualityReports   QualityReport[]
-  assignedKaizens          Kaizen[]
+  assignedKaizens          Kaizen[] @relation("KaizenAssignedTo")
   trainings                UserTraining[]
 
   bhpTrainingDueDate          DateTime? // Data ważności szkolenia BHP pracownika
@@ -387,6 +387,13 @@ model BhpHazardReport {
   actionTaken  String?  // Podjęte działania zapobiegawcze / korygujące
   notifyEmails String?  // Lista e-maili (CSV)
   dueDate      DateTime?
+
+  // --- POLA DO OCENY RYZYKA (Wypełnia osoba procesująca zgłoszenie) ---
+  hazardCategory  String?  // Kategoria zagrożenia (Mechaniczne, Chemiczne, Ergonomiczne, Toksyczne, Biologiczne, Termiczne, Inne)
+  probability     Int?     // Prawdopodobieństwo (1-5)
+  injurySeverity  Int?     // Ciężkość skutków (1-5)
+  riskScore       Int?     // Wynik ryzyka (probability × injurySeverity)
+  riskLevel       String?  // Poziom ryzyka (LOW, MEDIUM, HIGH)
 
   areaId       String?
   machineId    String?

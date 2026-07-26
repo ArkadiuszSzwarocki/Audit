@@ -41,10 +41,27 @@ export default function BhpHazardPage() {
   const resolvedCount = reports.filter((r) => r.status === 'RESOLVED').length;
   const criticalCount = reports.filter((r) => r.severity === 'CRITICAL' && r.status !== 'RESOLVED').length;
 
-  const handleUpdateStatus = async (id: string, status: string, actionTaken?: string) => {
+  const handleUpdateStatus = async (
+    id: string,
+    status: string,
+    actionTaken?: string,
+    hazardCategory?: string,
+    probability?: number,
+    injurySeverity?: number
+  ) => {
     try {
       if (status === 'RESOLVED') {
-        await resolveReport(id, undefined, actionTaken);
+        // Calculate risk score
+        const riskScore = probability && injurySeverity ? probability * injurySeverity : null;
+        const riskLevel = riskScore
+          ? riskScore >= 1 && riskScore <= 6
+            ? 'LOW'
+            : riskScore >= 8 && riskScore <= 14
+            ? 'MEDIUM'
+            : 'HIGH'
+          : null;
+
+        await resolveReport(id, undefined, actionTaken, hazardCategory, probability, injurySeverity);
       } else {
         const res = await fetch(`/api/bhp/${id}`, {
           method: 'PATCH',
@@ -198,6 +215,7 @@ export default function BhpHazardPage() {
                   <th className="p-3 text-center w-10">#</th>
                   <th className="p-3 w-48">Kategoria / Ryzyko</th>
                   <th className="p-3">Tytuł Zgłoszenia BHP</th>
+                  <th className="p-3 whitespace-nowrap w-40">Inspektor BHP</th>
                   <th className="p-3 whitespace-nowrap w-32">Status</th>
                   <th className="p-3 whitespace-nowrap w-32">Data</th>
                   <th className="p-3 text-center w-10">ℹ️</th>
@@ -239,6 +257,14 @@ export default function BhpHazardPage() {
                           <div className="text-[11px] text-slate-400 mt-0.5">
                             📍 {r.area.name}{r.machine ? ` · ⚙️ ${r.machine.name}` : ''}
                           </div>
+                        )}
+                      </td>
+
+                      <td className="p-3 whitespace-nowrap text-xs">
+                        {r.assignedTo ? (
+                          <span className="font-bold text-orange-700 dark:text-orange-300">🛡️ {r.assignedTo.name}</span>
+                        ) : (
+                          <span className="text-slate-400 italic">Nie przypisano</span>
                         )}
                       </td>
 

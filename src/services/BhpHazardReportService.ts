@@ -25,7 +25,17 @@ export class BhpHazardReportService {
     return this.repo.create(data);
   }
 
-  async markResolved(id: string, fixedBy: string, fixPhotoUrl?: string, actionTaken?: string): Promise<BhpHazardReportWithRelations> {
+  async markResolved(
+    id: string,
+    fixedBy: string,
+    fixPhotoUrl?: string,
+    actionTaken?: string,
+    hazardCategory?: string,
+    probability?: number,
+    injurySeverity?: number,
+    riskScore?: number | null,
+    riskLevel?: string | null
+  ): Promise<BhpHazardReportWithRelations> {
     await this.getById(id);
     return this.repo.update(id, {
       status: 'RESOLVED',
@@ -33,6 +43,11 @@ export class BhpHazardReportService {
       fixedAt: new Date(),
       ...(fixPhotoUrl ? { fixPhotoUrl } : {}),
       ...(actionTaken ? { actionTaken } : {}),
+      ...(hazardCategory ? { hazardCategory } : {}),
+      ...(probability !== undefined && probability !== null ? { probability } : {}),
+      ...(injurySeverity !== undefined && injurySeverity !== null ? { injurySeverity } : {}),
+      ...(riskScore !== undefined && riskScore !== null ? { riskScore } : {}),
+      ...(riskLevel ? { riskLevel } : {}),
     });
   }
 
