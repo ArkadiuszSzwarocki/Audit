@@ -38,14 +38,23 @@ export default function NoweZgloszenieBhpPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [reportedBy, setReportedBy] = useState('');
-  const [category, setCategory] = useState('NEAR_MISS');
-  const [severity, setSeverity] = useState('CRITICAL');
+  const [category, setCategory] = useState('');
+  const [probability, setProbability] = useState<number | ''>('');
+  const [injurySeverity, setInjurySeverity] = useState<number | ''>('');
   const [areaId, setAreaId] = useState('');
   const [machineId, setMachineId] = useState('');
   const [assignedToId, setAssignedToId] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [notifyEmails, setNotifyEmails] = useState('');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
+  // Dynamic risk calculation
+  const pVal = typeof probability === 'number' ? probability : 1;
+  const cVal = typeof injurySeverity === 'number' ? injurySeverity : 1;
+  const riskScore = pVal * cVal;
+  const severity = riskScore <= 6 ? 'LOW' : riskScore <= 14 ? 'MODERATE' : 'CRITICAL';
+  const riskLevel = riskScore <= 6 ? 'LOW' : riskScore <= 14 ? 'MEDIUM' : 'HIGH';
 
   useEffect(() => {
     if (user && !reportedBy) {
@@ -86,8 +95,9 @@ export default function NoweZgloszenieBhpPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !description.trim()) {
-      showToast('Tytuł i opis zagrożenia BHP są wymagane', 'error');
+    setHasAttemptedSubmit(true);
+    if (!title.trim() || !description.trim() || !reportedBy.trim()) {
+      showToast('Wypełnij wszystkie wymagane pola zaznaczone na czerwono!', 'error');
       return;
     }
 
@@ -101,6 +111,10 @@ export default function NoweZgloszenieBhpPage() {
           description: description.trim(),
           category,
           severity,
+          probability,
+          injurySeverity,
+          riskScore,
+          riskLevel,
           reportedBy: reportedBy.trim() || user?.name || user?.login || 'Pracownik',
           photoUrl,
           notifyEmails: notifyEmails.trim() || null,
@@ -110,10 +124,11 @@ export default function NoweZgloszenieBhpPage() {
           assignedToId: assignedToId || null,
         }),
       });
-      const created = await res.json();
-      if (!res.ok) throw new Error(created.error);
+      const resJson = await res.json();
+      if (!res.ok) throw new Error(resJson.error || resJson.message || 'Błąd zapisu zgłoszenia BHP');
+      const created = resJson.data || resJson;
 
-      showToast('Zgłoszenie zagrożenia BHP zostało zarejestrowane!', 'success');
+      showToast('Zgłoszenie zagrożenia BHP zostało zarejestrowane z Twoją wstępną oceną ryzyka!', 'success');
       router.push('/bhp');
     } catch (err: any) {
       showToast(err.message, 'error');
@@ -170,32 +185,76 @@ export default function NoweZgloszenieBhpPage() {
           </div>
         </div>
 
-        {/* Severity selector */}
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
-            Poziom Ryzyka *
-          </label>
-          <div className="grid grid-cols-3 gap-3">
-            {SEVERITIES.map((s) => (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => setSeverity(s.value)}
-                className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
-                  severity === s.value
-                    ? s.value === 'CRITICAL'
-                      ? 'border-red-500 bg-red-50 dark:bg-red-950/40'
-                      : s.value === 'MODERATE'
-                      ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/40'
-                      : 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/40'
-                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-400'
+        {/* Interactive Initial Risk Assessment Matrix */}
+        <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+              📊 Wstępna Ocena Ryzyka Zgłaszającego (Matryca P × C) *
+            </label>
+            <span className={`px-3 py-1 text-xs font-black rounded-xl border shadow-2xs ${
+              riskLevel === 'LOW' ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200' :
+              riskLevel === 'MEDIUM' ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-200' :
+              'bg-red-100 text-red-800 border-red-300 dark:bg-red-950 dark:text-red-200'
+            }`}>
+              Wynik Ryzyka: {riskScore} / 25 ({riskLevel === 'LOW' ? '🟢 NISKIE RYZYKO' : riskLevel === 'MEDIUM' ? '🟡 ŚREDNIE RYZYKO' : '🔴 WYSOKIE RYZYKO'})
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                Jak często zagrożenie występuje / może wystąpić? (P: 1-5) *
+              </label>
+              <select
+                value={probability}
+                onChange={(e) => setProbability(e.target.value ? Number(e.target.value) : '')}
+                className={`w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100 outline-none transition-all cursor-pointer ${
+                  hasAttemptedSubmit && probability === ''
+                    ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                    : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-orange-500'
                 }`}
               >
-                <div className="font-bold text-sm">{s.label}</div>
-                <div className="text-xs text-slate-500 mt-0.5">{s.desc}</div>
-              </button>
-            ))}
+                <option value="">— Wybierz prawdopodobieństwo (1-5) —</option>
+                <option value={1}>1 - Znikome (raz w roku / rzadko)</option>
+                <option value={2}>2 - Małe (raz w miesiącu)</option>
+                <option value={3}>3 - Średnie (raz w tygodniu)</option>
+                <option value={4}>4 - Duże (raz dziennie)</option>
+                <option value={5}>5 - Bardzo duże (ciągłe / stałe)</option>
+              </select>
+              {hasAttemptedSubmit && probability === '' && (
+                <p className="text-[10px] font-bold text-red-500 mt-1">⚠️ Wybierz prawdopodobieństwo!</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                Potencjalna ciężkość skutków urazu (C: 1-5) *
+              </label>
+              <select
+                value={injurySeverity}
+                onChange={(e) => setInjurySeverity(e.target.value ? Number(e.target.value) : '')}
+                className={`w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100 outline-none transition-all cursor-pointer ${
+                  hasAttemptedSubmit && injurySeverity === ''
+                    ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                    : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-orange-500'
+                }`}
+              >
+                <option value="">— Wybierz ciężkość urazu (1-5) —</option>
+                <option value={1}>1 - Znikoma (brak urazu / pierwsza pomoc)</option>
+                <option value={2}>2 - Mała (lekkie skaleczenie / stłuczenie)</option>
+                <option value={3}>3 - Średnia (uraz / zwolnienie L4)</option>
+                <option value={4}>4 - Duża (ciężki uszczerbek na zdrowiu)</option>
+                <option value={5}>5 - Krytyczna (zagrożenie życia / wypadkowe)</option>
+              </select>
+              {hasAttemptedSubmit && injurySeverity === '' && (
+                <p className="text-[10px] font-bold text-red-500 mt-1">⚠️ Wybierz ciężkość skutków!</p>
+              )}
+            </div>
           </div>
+
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+            ℹ️ Po zgłoszeniu Inspektor BHP / Komisja zweryfikuje Twoją wstępną ocenę podczas analizy i w razie potrzeby zatwierdzi lub skoryguje skala zagrożenia.
+          </p>
         </div>
 
         {/* ReportedBy */}
@@ -209,8 +268,17 @@ export default function NoweZgloszenieBhpPage() {
             placeholder="Jan Kowalski"
             value={reportedBy}
             onChange={(e) => setReportedBy(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500 font-bold"
+            className={`w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border rounded-xl text-sm outline-none font-bold transition-all ${
+              hasAttemptedSubmit && !reportedBy.trim()
+                ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-orange-500'
+            }`}
           />
+          {hasAttemptedSubmit && !reportedBy.trim() && (
+            <p className="text-xs font-bold text-red-500 mt-1 flex items-center gap-1">
+              ⚠️ Pole "Zgłaszający" jest wymagane!
+            </p>
+          )}
         </div>
 
         {/* Title */}
@@ -224,8 +292,17 @@ export default function NoweZgloszenieBhpPage() {
             placeholder="np. Odkryty przewód elektryczny przy prasie P-2"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500"
+            className={`w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border rounded-xl text-sm outline-none transition-all ${
+              hasAttemptedSubmit && !title.trim()
+                ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-orange-500'
+            }`}
           />
+          {hasAttemptedSubmit && !title.trim() && (
+            <p className="text-xs font-bold text-red-500 mt-1 flex items-center gap-1">
+              ⚠️ Pole "Tytuł Zagrożenia" jest wymagane!
+            </p>
+          )}
         </div>
 
         {/* Description */}
@@ -239,8 +316,17 @@ export default function NoweZgloszenieBhpPage() {
             placeholder="Opisz jak doszło do zdarzenia, jakie były okoliczności oraz jakie jest ryzyko urazu..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500"
+            className={`w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border rounded-xl text-sm outline-none transition-all ${
+              hasAttemptedSubmit && !description.trim()
+                ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-orange-500'
+            }`}
           />
+          {hasAttemptedSubmit && !description.trim() && (
+            <p className="text-xs font-bold text-red-500 mt-1 flex items-center gap-1">
+              ⚠️ Pole "Opis Zagrożenia" jest wymagane!
+            </p>
+          )}
         </div>
 
         {/* Area + Machine */}
@@ -296,9 +382,9 @@ export default function NoweZgloszenieBhpPage() {
             className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500"
           >
             <option value="">— wyznaczenie osoby lub wybór z listy —</option>
-            {users.map((u) => (
+            {users.map((u: any) => (
               <option key={u.id} value={u.id}>
-                {u.name}
+                👤 {u.name} {u.role ? `(${u.role})` : ''}
               </option>
             ))}
           </select>

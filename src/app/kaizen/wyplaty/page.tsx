@@ -26,14 +26,16 @@ interface PayoutRequest {
 
 export default function KaizenWyplatyPage() {
   const { showToast } = useToast();
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { user, isAdmin, isKaizenCommittee, loading: authLoading } = useAuth();
 
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('PENDING');
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  const isOperatorOrAuditor = !isAdmin && user?.role && ['OPERATOR', 'AUDYTOR', 'AUDITOR'].includes(user.role.toUpperCase());
+  const userRoleUpper = String(user?.role || '').toUpperCase();
+  const isAuthorized = isAdmin || isKaizenCommittee || ['KOMISJA KAIZEN', 'KOMISJA_KAIZEN', 'KAIZEN_COMMITTEE', 'ZARZAD', 'ZARZĄD', 'ADMIN'].includes(userRoleUpper);
+  const isOperatorOrAuditor = !isAuthorized;
 
   useEffect(() => {
     if (!authLoading && !isOperatorOrAuditor) {
@@ -59,8 +61,13 @@ export default function KaizenWyplatyPage() {
     }
   };
 
-  const handleUpdateStatus = async (id: string, newStatus: 'APPROVED' | 'REJECTED') => {
-    const actionText = newStatus === 'APPROVED' ? 'Zatwierdzić i Wypłacić' : 'Odrzucić';
+  const handleUpdateStatus = async (id: string, newStatus: 'APPROVED' | 'REJECTED' | 'PENDING') => {
+    const actionText = newStatus === 'APPROVED' 
+      ? 'Zatwierdzić i Wypłacić' 
+      : newStatus === 'REJECTED'
+      ? 'Odrzucić'
+      : 'Cofnąć zatwierdzenie (wniosek wróci do oczekujących)';
+
     if (!window.confirm(`Czy na pewno chcesz ${actionText} ten wniosek o wypłatę nagrody?`)) {
       return;
     }
@@ -77,7 +84,9 @@ export default function KaizenWyplatyPage() {
         showToast(
           newStatus === 'APPROVED'
             ? 'Wniosek o wypłatę został zatwierdzony. Wynagrodzenie zostało oznaczone jako rozliczone!'
-            : 'Wniosek o wypłatę został odrzucony.',
+            : newStatus === 'REJECTED'
+            ? 'Wniosek o wypłatę został odrzucony.'
+            : 'Cofnięto zatwierdzenie wypłaty. Wniosek wrócił do oczekujących.',
           newStatus === 'APPROVED' ? 'success' : 'info'
         );
         fetchPayouts();
@@ -379,6 +388,18 @@ export default function KaizenWyplatyPage() {
                         {processingId === item.id ? 'Przetwarzanie...' : '✅ Zatwierdź i Wypłać'}
                       </button>
                     </>
+                  )}
+
+                  {(item.status === 'APPROVED' || item.status === 'REJECTED') && (
+                    <button
+                      type="button"
+                      disabled={processingId === item.id}
+                      onClick={() => handleUpdateStatus(item.id, 'PENDING')}
+                      className="px-3.5 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 dark:bg-amber-950 dark:hover:bg-amber-900 dark:text-amber-200 rounded-xl font-extrabold text-xs transition-colors cursor-pointer border border-amber-300 dark:border-amber-800 flex items-center gap-1.5"
+                      title="Cofnij zatwierdzenie / przywróć wniosek do statusu oczekującego"
+                    >
+                      <span>↩️</span> Cofnij zatwierdzenie wypłaty
+                    </button>
                   )}
                 </div>
               </div>

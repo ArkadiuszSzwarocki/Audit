@@ -5,6 +5,7 @@ export interface User {
   login: string;
   name: string;
   role: string;
+  isKaizenCommittee?: boolean;
 }
 
 export function useUsers() {

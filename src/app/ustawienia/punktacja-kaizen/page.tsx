@@ -24,8 +24,10 @@ interface KaizenGoal {
 }
 
 export default function KaizenScoringSettingsPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isKaizenCommittee, user } = useAuth();
   const { showToast, showConfirm } = useToast();
+
+  const canManage = isAdmin || isKaizenCommittee || (user?.role && ['KOMISJA KAIZEN', 'KOMISJA_KAIZEN', 'KAIZEN_COMMITTEE'].includes(user.role.toUpperCase()));
 
   const [categories, setCategories] = useState<ScoringCategory[]>([]);
   const [goal, setGoal] = useState<KaizenGoal>({
@@ -57,25 +59,6 @@ export default function KaizenScoringSettingsPage() {
       showToast('Błąd pobierania punktacji Kaizen', 'error');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSaveGoal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/kaizen-scoring', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save_goal', goal }),
-      });
-      if (res.ok) {
-        showToast('Cel i target punktowy został zapisany!', 'success');
-      } else {
-        const data = await res.json();
-        showToast(data.error || 'Błąd zapisu celu', 'error');
-      }
-    } catch (err: any) {
-      showToast(err.message, 'error');
     }
   };
 
@@ -154,14 +137,14 @@ export default function KaizenScoringSettingsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-200 dark:border-slate-800 pb-4 gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-3">
-            ⭐ Reguły Punktacji i Cele Kaizen
+            ⭐ Reguły Punktacji Kaizen
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
-            Konfiguruj parametry przyznawania punktów (widełki za czas, oszczędności, 5S, HACCP) oraz miesięczny cel zespołu.
+            Konfiguruj parametry przyznawania punktów (widełki za czas, oszczędności, 5S, HACCP).
           </p>
         </div>
 
-        {isAdmin && (
+        {canManage && (
           <button
             onClick={() => {
               setEditingCategory({
@@ -215,7 +198,7 @@ export default function KaizenScoringSettingsPage() {
                 </div>
               </div>
 
-              {isAdmin && (
+              {canManage && (
                 <button
                   type="button"
                   onClick={handleToggleScoring}
@@ -230,76 +213,8 @@ export default function KaizenScoringSettingsPage() {
               )}
             </div>
           </section>
-          {/* Section 1: Team Goal Settings */}
-          <section className="glass-card p-6 bg-amber-500/10 border-amber-300 dark:border-amber-800/80 space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">🎯</span>
-              <div>
-                <h2 className="text-xl font-extrabold text-amber-900 dark:text-amber-200">
-                  Target i Cel Punktowy Zespołu
-                </h2>
-                <p className="text-xs text-amber-800 dark:text-amber-300/80">
-                  Miesięczna norma punktowa dla całego zakładu. Postęp w realizacji wyświetla się na głównej liście wniosków Kaizen.
-                </p>
-              </div>
-            </div>
 
-            <form onSubmit={handleSaveGoal} className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-                  Tytuł Celu
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={goal.title}
-                  onChange={e => setGoal(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-                  Docelowa Liczba Punktów (Target)
-                </label>
-                <input
-                  type="number"
-                  required
-                  min={50}
-                  step={50}
-                  value={goal.targetPoints}
-                  onChange={e => setGoal(prev => ({ ...prev, targetPoints: Number(e.target.value) || 0 }))}
-                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-                  Opis Nagrody / Premii
-                </label>
-                <input
-                  type="text"
-                  value={goal.rewardInfo}
-                  onChange={e => setGoal(prev => ({ ...prev, rewardInfo: e.target.value }))}
-                  placeholder="np. Bonus finansowy / Pomysłodawca Miesiąca"
-                  className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-
-              {isAdmin && (
-                <div className="md:col-span-3 flex justify-end pt-2">
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black shadow-md cursor-pointer transition-all"
-                  >
-                    💾 Zapisz Cel Punktowy
-                  </button>
-                </div>
-              )}
-            </form>
-          </section>
-
-          {/* Section 2: Point Ranges & Scoring Categories */}
+          {/* Section: Point Ranges & Scoring Categories */}
           <section className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -331,7 +246,7 @@ export default function KaizenScoringSettingsPage() {
                       </div>
                     </div>
 
-                    {isAdmin && (
+                    {canManage && (
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => {

@@ -151,13 +151,14 @@ export function buildFaultReportEml(data: FaultReportEmailData, toEmails: string
 }
 
 export function downloadFaultReportEml(data: FaultReportEmailData, toEmails: string, baseUrl: string): void {
-  const subject = `[Usterka] ${data.severity === 'CRITICAL' ? '🔴 KRYTYCZNA' : '⚠️'} ${data.title}`;
+  const safeTitle = (data?.title || 'Usterka').replace(/\s+/g, '_').slice(0, 40);
+  const subject = `[Usterka] ${data.severity === 'CRITICAL' ? '🔴 KRYTYCZNA' : '⚠️'} ${data.title || 'Nowa Usterka'}`;
   const eml = buildFaultReportEml(data, toEmails, subject, baseUrl);
   const blob = new Blob([eml], { type: 'message/rfc822' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `Usterka_${data.title.replace(/\s+/g, '_').slice(0, 40)}.eml`;
+  a.download = `Usterka_${safeTitle}.eml`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

@@ -9,6 +9,7 @@ import { ChangePasswordModal } from '@/components/ui/ChangePasswordModal';
 import { useDesktopNotifications } from '@/hooks/useDesktopNotifications';
 import { KaizenRanksModal } from '@/components/ui/KaizenRanksModal';
 import { KaizenRewardPayoutModal } from '@/components/ui/KaizenRewardPayoutModal';
+import { BugReportModal } from '@/components/ui/BugReportModal';
 
 interface HeaderProps {
   onOpenMobileMenu: () => void;
@@ -33,6 +34,8 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isRanksModalOpen, setIsRanksModalOpen] = useState(false);
   const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
+  const [isBugReportModalOpen, setIsBugReportModalOpen] = useState(false);
+  const [unreadBugCount, setUnreadBugCount] = useState(0);
   const [payoutTab, setPayoutTab] = useState<'NEW_PAYOUT' | 'HISTORY'>('NEW_PAYOUT');
 
   useEffect(() => {
@@ -52,10 +55,26 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
   useEffect(() => {
     if (user) {
       fetchUserStats();
-      const interval = setInterval(fetchUserStats, 12000);
+      fetchBugUnreadCount();
+      const interval = setInterval(() => {
+        fetchUserStats();
+        fetchBugUnreadCount();
+      }, 10000);
       return () => clearInterval(interval);
     }
   }, [user]);
+
+  const fetchBugUnreadCount = async () => {
+    try {
+      const res = await fetch('/api/bug-reports');
+      if (res.ok) {
+        const data = await res.json();
+        setUnreadBugCount(data.unreadCount || 0);
+      }
+    } catch {
+      // Ignore background errors
+    }
+  };
 
   const fetchUserStats = async () => {
     try {
@@ -101,7 +120,26 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
           </div>
 
           {/* Action / User section */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+
+            {/* Robaczek - Zgłoś Problem Button */}
+            {user && (
+              <button
+                type="button"
+                onClick={() => setIsBugReportModalOpen(true)}
+                className="relative p-2 sm:px-3 sm:py-1.5 rounded-xl bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/60 font-extrabold text-xs transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                title="Zgłoś problem / wsparcie techniczne"
+              >
+                <span className="text-base">🐛</span>
+                <span className="hidden sm:inline">Zgłoś problem</span>
+                {unreadBugCount > 0 && (
+                  <span className="px-1.5 py-0.5 bg-red-600 text-white font-black text-[10px] rounded-full shadow-xs animate-pulse">
+                    {unreadBugCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             {/* Interactive Logged-in User Profile Dropdown Pill */}
             {user ? (
               <div className="relative">
@@ -386,6 +424,16 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
           initialTab={payoutTab}
         />
       )}
+
+      {/* Bug Report & Support Chat Modal */}
+      <BugReportModal
+        isOpen={isBugReportModalOpen}
+        onClose={() => {
+          setIsBugReportModalOpen(false);
+          fetchBugUnreadCount();
+        }}
+        onReportCreated={fetchBugUnreadCount}
+      />
     </>
   );
 }

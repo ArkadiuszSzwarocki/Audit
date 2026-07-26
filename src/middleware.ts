@@ -59,8 +59,9 @@ export async function proxy(request: NextRequest) {
       const roleStr = String(sessionPayload.role || '').toUpperCase();
       const isAdmin = roleStr === 'ADMIN' || roleStr === 'ADMINISTRATOR' || roleStr === 'ZARZAD' || roleStr === 'ZARZĄD' || roleStr === 'BOARD';
 
+      const isUserMutation = pathname.startsWith('/api/users') && request.method !== 'GET';
       const isAdminOnlyApi =
-        pathname.startsWith('/api/users') ||
+        isUserMutation ||
         pathname.startsWith('/api/roles') ||
         pathname.startsWith('/api/admin');
 

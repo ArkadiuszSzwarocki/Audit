@@ -41,6 +41,11 @@ export interface CreateBhpHazardReportDto {
   areaId?: string | null;
   machineId?: string | null;
   assignedToId?: string | null;
+  hazardCategory?: string | null;
+  probability?: number | null;
+  injurySeverity?: number | null;
+  riskScore?: number | null;
+  riskLevel?: string | null;
 }
 
 export interface IBhpHazardReportRepository {

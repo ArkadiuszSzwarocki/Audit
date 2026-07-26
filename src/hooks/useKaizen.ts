@@ -29,7 +29,7 @@ export function useKaizen() {
       const res = await fetch('/api/kaizen');
       if (res.ok) {
         const data = await res.json();
-        setKaizens(Array.isArray(data) ? data : []);
+        setKaizens(Array.isArray(data) ? data.filter(Boolean) : []);
       } else {
         setKaizens([]);
       }

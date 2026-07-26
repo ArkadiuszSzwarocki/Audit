@@ -37,16 +37,19 @@ export function UserEmailPicker({
 }: UserEmailPickerProps) {
   const [selectedUserIndex, setSelectedUserIndex] = useState<string>('');
   const [internalUsers, setInternalUsers] = useState<UserEmailOption[]>([]);
+  const [loadingInternalUsers, setLoadingInternalUsers] = useState<boolean>(false);
 
   // Fetch users from DB if not provided or empty
   React.useEffect(() => {
     if (!propUsers || propUsers.length === 0) {
+      setLoadingInternalUsers(true);
       fetch('/api/users')
         .then((r) => r.json())
         .then((data) => {
           if (Array.isArray(data)) setInternalUsers(data);
         })
-        .catch(console.error);
+        .catch(console.error)
+        .finally(() => setLoadingInternalUsers(false));
     }
   }, [propUsers]);
 
@@ -154,8 +157,10 @@ export function UserEmailPicker({
           className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
         >
           <option value="">
-            {formattedUsers.length === 0
+            {loadingInternalUsers
               ? '-- Ładowanie listy pracowników... --'
+              : formattedUsers.length === 0
+              ? '-- Wpisz adres e-mail poniżej --'
               : '-- Wybierz pracownika z bazy zakładu... --'}
           </option>
           {formattedUsers.map((u) => (

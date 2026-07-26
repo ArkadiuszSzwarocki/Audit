@@ -10,6 +10,11 @@ export async function GET() {
   }
 
   const users = await prisma.user.findMany({
+    where: {
+      NOT: {
+        login: { in: ['MasterAdmin', 'masteradmin'] }
+      }
+    },
     select: {
       id: true,
       login: true,
@@ -27,6 +32,7 @@ export async function GET() {
       notifyFaults: true,
       notifyKaizen: true,
       notifyAudits: true,
+      isKaizenCommittee: true,
       createdAt: true
     },
     orderBy: { name: 'asc' }
@@ -54,6 +60,7 @@ export async function POST(request: Request) {
       notifyFaults,
       notifyKaizen,
       notifyAudits,
+      isKaizenCommittee,
     } = await request.json();
     
     if (!login || !name || !password) {
@@ -87,6 +94,7 @@ export async function POST(request: Request) {
         notifyFaults: Boolean(notifyFaults),
         notifyKaizen: Boolean(notifyKaizen),
         notifyAudits: Boolean(notifyAudits),
+        isKaizenCommittee: Boolean(isKaizenCommittee),
       },
       select: {
         id: true,
@@ -100,7 +108,8 @@ export async function POST(request: Request) {
         notifyQuality: true,
         notifyFaults: true,
         notifyKaizen: true,
-        notifyAudits: true
+        notifyAudits: true,
+        isKaizenCommittee: true,
       }
     });
 

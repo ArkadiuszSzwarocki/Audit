@@ -56,6 +56,11 @@ export class BhpHazardReportService {
     return this.repo.update(id, { status });
   }
 
+  async update(id: string, data: any): Promise<BhpHazardReportWithRelations> {
+    await this.getById(id);
+    return this.repo.update(id, data);
+  }
+
   async assignTo(id: string, assignedToId: string | null): Promise<BhpHazardReportWithRelations> {
     await this.getById(id);
     return this.repo.update(id, { assignedToId: assignedToId ?? undefined });

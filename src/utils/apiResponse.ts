@@ -31,7 +31,12 @@ export class ApiResponse {
     console.error('[API Error]:', error);
 
     if (error instanceof ZodError) {
-      const firstIssue = error.issues[0]?.message;
+      const firstIssue = error.issues[0];
+      const fieldPath = firstIssue?.path?.join('.');
+      const formattedErrorMessage = fieldPath
+        ? `Pole "${fieldPath}": ${firstIssue.message}`
+        : firstIssue?.message || 'Błąd walidacji danych wejściowych';
+
       const formattedErrors = error.issues.map(issue => ({
         field: issue.path.join('.'),
         message: issue.message,
@@ -40,7 +45,7 @@ export class ApiResponse {
       return NextResponse.json(
         {
           success: false,
-          error: firstIssue || 'Błąd walidacji danych wejściowych',
+          error: formattedErrorMessage,
           details: formattedErrors,
           statusCode: 400,
           timestamp: new Date().toISOString(),

@@ -29,6 +29,7 @@ function NewKaizenForm() {
   const [users, setUsers] = useState<{ id: string; name: string; email: string | null }[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   useEffect(() => {
     if (user && !submittedBy) {
@@ -74,15 +75,11 @@ function NewKaizenForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const finalSubmittedBy = submittedBy.trim() || user?.name || user?.login || 'Pracownik Zakładu';
+    setHasAttemptedSubmit(true);
+    const finalSubmittedBy = submittedBy.trim() || user?.name || user?.login || '';
 
-    if (!title.trim()) {
-      showToast('Wpisz tytuł pomysłu Kaizen (minimum 3 znaki)', 'error');
-      return;
-    }
-
-    if (!description.trim()) {
-      showToast('Wpisz opis ulepszenia (minimum 5 znaków)', 'error');
+    if (!title.trim() || !description.trim() || !finalSubmittedBy.trim()) {
+      showToast('Wypełnij wszystkie wymagane pola zaznaczone na czerwono!', 'error');
       return;
     }
     
@@ -99,7 +96,6 @@ function NewKaizenForm() {
       });
       showToast('Pomysł zgłoszony pomyślnie!', 'success');
 
-      // Auto-send EML notification if emails provided
       if (notifyEmails.trim()) {
         const baseUrl = window.location.origin;
         const area = areas.find(a => a.id === areaId);
@@ -111,7 +107,7 @@ function NewKaizenForm() {
             title: title.trim(),
             description: description.trim(),
             benefits: benefits.trim() || null,
-            submittedBy: submittedBy.trim(),
+            submittedBy: finalSubmittedBy,
             areaName: area?.name,
             machineName: machine?.name,
             photoUrl: photoUrl || null,
@@ -138,18 +134,65 @@ function NewKaizenForm() {
 
       <form onSubmit={handleSubmit} className="glass-card space-y-6">
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Twoje Imię i Nazwisko</label>
-          <input required type="text" value={submittedBy} onChange={e => setSubmittedBy(e.target.value)} placeholder="Jan Kowalski" className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500 outline-none" />
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Twoje Imię i Nazwisko *</label>
+          <input
+            required
+            type="text"
+            value={submittedBy}
+            onChange={e => setSubmittedBy(e.target.value)}
+            placeholder="Jan Kowalski"
+            className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 outline-none transition-all ${
+              hasAttemptedSubmit && !submittedBy.trim()
+                ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-brand-500'
+            }`}
+          />
+          {hasAttemptedSubmit && !submittedBy.trim() && (
+            <p className="text-xs font-bold text-red-500 mt-1 flex items-center gap-1">
+              ⚠️ Pole "Imię i Nazwisko" jest wymagane!
+            </p>
+          )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Krótki tytuł pomysłu</label>
-          <input required type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="np. Montaż lustra na skrzyżowaniu wózków" className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500 outline-none" />
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Krótki tytuł pomysłu *</label>
+          <input
+            required
+            type="text"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder="np. Montaż lustra na skrzyżowaniu wózków"
+            className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 outline-none transition-all ${
+              hasAttemptedSubmit && !title.trim()
+                ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-brand-500'
+            }`}
+          />
+          {hasAttemptedSubmit && !title.trim() && (
+            <p className="text-xs font-bold text-red-500 mt-1 flex items-center gap-1">
+              ⚠️ Pole "Tytuł pomysłu" jest wymagane!
+            </p>
+          )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Opis problemu i rozwiązanie</label>
-          <textarea required value={description} onChange={e => setDescription(e.target.value)} placeholder="Obecnie jest tak, a proponuję zrobić to w ten sposób..." className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500 outline-none min-h-[120px]" />
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Opis problemu i rozwiązanie *</label>
+          <textarea
+            required
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            placeholder="Obecnie jest tak, a proponuję zrobić to w ten sposób..."
+            className={`w-full px-4 py-3 rounded-lg border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 outline-none min-h-[120px] transition-all ${
+              hasAttemptedSubmit && !description.trim()
+                ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-brand-500'
+            }`}
+          />
+          {hasAttemptedSubmit && !description.trim() && (
+            <p className="text-xs font-bold text-red-500 mt-1 flex items-center gap-1">
+              ⚠️ Pole "Opis problemu" jest wymagane!
+            </p>
+          )}
         </div>
 
         <div>

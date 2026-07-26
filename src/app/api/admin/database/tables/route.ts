@@ -37,10 +37,13 @@ export async function GET(request: Request) {
       case 'user':
         data = await prisma.user.findMany({
           take: 50,
+          where: { NOT: { login: { in: ['MasterAdmin', 'masteradmin'] } } },
           orderBy: { createdAt: 'desc' },
           select: { id: true, login: true, name: true, role: true, createdAt: true }
         });
-        count = await prisma.user.count();
+        count = await prisma.user.count({
+          where: { NOT: { login: { in: ['MasterAdmin', 'masteradmin'] } } }
+        });
         break;
       case 'area':
         data = await prisma.area.findMany({

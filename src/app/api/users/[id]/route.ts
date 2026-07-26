@@ -24,11 +24,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<an
       notifyFaults,
       notifyKaizen,
       notifyAudits,
+      isKaizenCommittee,
     } = body;
 
     const targetUser = await prisma.user.findUnique({ where: { id } });
     if (!targetUser) {
       return NextResponse.json({ error: 'Użytkownik nie istnieje' }, { status: 404 });
+    }
+
+    if (String(targetUser.login || '').toLowerCase() === 'masteradmin') {
+      return NextResponse.json({ error: 'Niedozwolona operacja! Ukryte konto systemowe MasterAdmin nie może być modyfikowane.' }, { status: 403 });
     }
 
     const targetRoleUpper = String(targetUser.role || '').toUpperCase();
@@ -63,6 +68,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<an
       notifyFaults: notifyFaults !== undefined ? Boolean(notifyFaults) : targetUser.notifyFaults,
       notifyKaizen: notifyKaizen !== undefined ? Boolean(notifyKaizen) : targetUser.notifyKaizen,
       notifyAudits: notifyAudits !== undefined ? Boolean(notifyAudits) : targetUser.notifyAudits,
+      isKaizenCommittee: isKaizenCommittee !== undefined ? Boolean(isKaizenCommittee) : targetUser.isKaizenCommittee,
     };
 
     if (newPassword && String(newPassword).trim().length > 0) {
@@ -89,6 +95,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<an
         notifyFaults: true,
         notifyKaizen: true,
         notifyAudits: true,
+        isKaizenCommittee: true,
       }
     });
 
@@ -111,6 +118,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const targetUser = await prisma.user.findUnique({ where: { id } });
     if (!targetUser) {
       return NextResponse.json({ error: 'Użytkownik nie istnieje' }, { status: 404 });
+    }
+
+    if (String(targetUser.login || '').toLowerCase() === 'masteradmin') {
+      return NextResponse.json({ error: 'Niedozwolona operacja! Ukryte konto systemowe MasterAdmin nie może być usunięte.' }, { status: 403 });
     }
 
     const targetRoleUpper = String(targetUser.role || '').toUpperCase();

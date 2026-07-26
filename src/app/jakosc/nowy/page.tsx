@@ -38,8 +38,9 @@ export default function NoweZgloszenieJakosciowePage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [reportedBy, setReportedBy] = useState('');
-  const [category, setCategory] = useState('PRODUCT_DEFECT');
-  const [severity, setSeverity] = useState('CRITICAL');
+  const [category, setCategory] = useState('');
+  const [detectionScore, setDetectionScore] = useState<number | ''>('');
+  const [severityScore, setSeverityScore] = useState<number | ''>('');
   const [batchNumber, setBatchNumber] = useState('');
   const [quantityAffected, setQuantityAffected] = useState('');
   const [areaId, setAreaId] = useState('');
@@ -47,6 +48,14 @@ export default function NoweZgloszenieJakosciowePage() {
   const [assignedToId, setAssignedToId] = useState('');
   const [notifyEmails, setNotifyEmails] = useState('');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
+  // Dynamic Quality risk calculation
+  const dVal = typeof detectionScore === 'number' ? detectionScore : 1;
+  const sVal = typeof severityScore === 'number' ? severityScore : 1;
+  const qualityRiskScore = dVal * sVal;
+  const severity = qualityRiskScore <= 6 ? 'MINOR' : qualityRiskScore <= 14 ? 'MODERATE' : 'CRITICAL';
+  const qualityRiskLevel = qualityRiskScore <= 6 ? 'LOW' : qualityRiskScore <= 14 ? 'MEDIUM' : 'HIGH';
 
   useEffect(() => {
     if (user && !reportedBy) {
@@ -87,8 +96,9 @@ export default function NoweZgloszenieJakosciowePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !description.trim()) {
-      showToast('Tytuł i opis wady jakościowej są wymagane', 'error');
+    setHasAttemptedSubmit(true);
+    if (!title.trim() || !description.trim() || !reportedBy.trim()) {
+      showToast('Wypełnij wszystkie wymagane pola zaznaczone na czerwono!', 'error');
       return;
     }
 
@@ -115,7 +125,7 @@ export default function NoweZgloszenieJakosciowePage() {
       const created = await res.json();
       if (!res.ok) throw new Error(created.error);
 
-      showToast('Zgłoszenie jakościowe zostało zarejestrowane!', 'success');
+      showToast('Zgłoszenie jakościowe zostało zarejestrowane z Twoją wstępną oceną ryzyka!', 'success');
       router.push('/jakosc');
     } catch (err: any) {
       showToast(err.message, 'error');
@@ -172,32 +182,76 @@ export default function NoweZgloszenieJakosciowePage() {
           </div>
         </div>
 
-        {/* Severity selector */}
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
-            Poziom Istotności / Priorytet *
-          </label>
-          <div className="grid grid-cols-3 gap-3">
-            {SEVERITIES.map((s) => (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => setSeverity(s.value)}
-                className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
-                  severity === s.value
-                    ? s.value === 'CRITICAL'
-                      ? 'border-red-500 bg-red-50 dark:bg-red-950/40'
-                      : s.value === 'MODERATE'
-                      ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/40'
-                      : 'border-slate-400 bg-slate-100 dark:bg-slate-800'
-                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-400'
+        {/* Interactive Initial Quality Risk Assessment Matrix */}
+        <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <label className="block text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+              📊 Wstępna Ocena Ryzyka Jakościowego Zgłaszającego (Matryca D × S) *
+            </label>
+            <span className={`px-3 py-1 text-xs font-black rounded-xl border shadow-2xs ${
+              qualityRiskLevel === 'LOW' ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200' :
+              qualityRiskLevel === 'MEDIUM' ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-200' :
+              'bg-red-100 text-red-800 border-red-300 dark:bg-red-950 dark:text-red-200'
+            }`}>
+              Wynik Ryzyka: {qualityRiskScore} / 25 ({qualityRiskLevel === 'LOW' ? '🟢 DROBNE ODCHYLENIE' : qualityRiskLevel === 'MEDIUM' ? '🟡 ŚREDNIA NIEZGODNOŚĆ' : '🔴 KRYTYCZNA NIEZGODNOŚĆ'})
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                Wykrywalność Wady na Linii (D: 1-5) *
+              </label>
+              <select
+                value={detectionScore}
+                onChange={(e) => setDetectionScore(e.target.value ? Number(e.target.value) : '')}
+                className={`w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100 outline-none transition-all cursor-pointer ${
+                  hasAttemptedSubmit && detectionScore === ''
+                    ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                    : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500'
                 }`}
               >
-                <div className="font-bold text-sm">{s.label}</div>
-                <div className="text-xs text-slate-500 mt-0.5">{s.desc}</div>
-              </button>
-            ))}
+                <option value="">— Wybierz trudność wykrycia wady (D: 1-5) —</option>
+                <option value={1}>1 - Bardzo łatwa (automatyczna na linii)</option>
+                <option value={2}>2 - Łatwa (Standardowa kontrola organoleptyczna)</option>
+                <option value={3}>3 - Średnia (Wykrywalna w lab / próby)</option>
+                <option value={4}>4 - Trudna (Słabo widoczna)</option>
+                <option value={5}>5 - Bardzo trudna (Niewykrywalna / Klient)</option>
+              </select>
+              {hasAttemptedSubmit && detectionScore === '' && (
+                <p className="text-[10px] font-bold text-red-500 mt-1">⚠️ Wybierz trudność wykrycia!</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                Wpływ na Klienta / Jakość Produktu (S: 1-5) *
+              </label>
+              <select
+                value={severityScore}
+                onChange={(e) => setSeverityScore(e.target.value ? Number(e.target.value) : '')}
+                className={`w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100 outline-none transition-all cursor-pointer ${
+                  hasAttemptedSubmit && severityScore === ''
+                    ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                    : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500'
+                }`}
+              >
+                <option value="">— Wybierz wpływ na jakość produktu (S: 1-5) —</option>
+                <option value={1}>1 - Znikomy (Drobny błąd estetyczny)</option>
+                <option value={2}>2 - Mały (Lekkie odstępstwo nieistotne)</option>
+                <option value={3}>3 - Średni (Utrudnienie / Przerób)</option>
+                <option value={4}>4 - Duży (Reklamacja / Zastopowanie wysyłki)</option>
+                <option value={5}>5 - Krytyczny (Wycofanie z rynku / Bezpieczeństwo)</option>
+              </select>
+              {hasAttemptedSubmit && severityScore === '' && (
+                <p className="text-[10px] font-bold text-red-500 mt-1">⚠️ Wybierz wpływ na jakość!</p>
+              )}
+            </div>
           </div>
+
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+            ℹ️ Po zgłoszeniu Dział Kontroli Jakości zweryfikuje Twoją wstępną ocenę podczas analizy CAPA i w razie potrzeby zatwierdzi lub skoryguje poziom istotności.
+          </p>
         </div>
 
         {/* ReportedBy */}
@@ -211,8 +265,17 @@ export default function NoweZgloszenieJakosciowePage() {
             placeholder="Jan Kowalski"
             value={reportedBy}
             onChange={(e) => setReportedBy(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-500 font-bold"
+            className={`w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border rounded-xl text-sm outline-none font-bold transition-all ${
+              hasAttemptedSubmit && !reportedBy.trim()
+                ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500'
+            }`}
           />
+          {hasAttemptedSubmit && !reportedBy.trim() && (
+            <p className="text-xs font-bold text-red-500 mt-1 flex items-center gap-1">
+              ⚠️ Pole "Zgłaszający" jest wymagane!
+            </p>
+          )}
         </div>
 
         {/* Title */}
@@ -226,8 +289,17 @@ export default function NoweZgloszenieJakosciowePage() {
             placeholder="np. Przekroczony poziom wilgotności surowca A-102"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-500"
+            className={`w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border rounded-xl text-sm outline-none transition-all ${
+              hasAttemptedSubmit && !title.trim()
+                ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500'
+            }`}
           />
+          {hasAttemptedSubmit && !title.trim() && (
+            <p className="text-xs font-bold text-red-500 mt-1 flex items-center gap-1">
+              ⚠️ Pole "Tytuł Niezgodności" jest wymagane!
+            </p>
+          )}
         </div>
 
         {/* Description */}
@@ -241,8 +313,17 @@ export default function NoweZgloszenieJakosciowePage() {
             placeholder="Opisz dokładnie wykrytą wadę, parametry próbki lub zastrzeżenia dotyczące wyrobu..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-500"
+            className={`w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border rounded-xl text-sm outline-none transition-all ${
+              hasAttemptedSubmit && !description.trim()
+                ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-purple-500'
+            }`}
           />
+          {hasAttemptedSubmit && !description.trim() && (
+            <p className="text-xs font-bold text-red-500 mt-1 flex items-center gap-1">
+              ⚠️ Pole "Opis Niezgodności" jest wymagane!
+            </p>
+          )}
         </div>
 
         {/* Batch Number & Quantity */}

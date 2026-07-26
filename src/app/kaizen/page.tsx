@@ -15,22 +15,17 @@ const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   PENDING:  { label: '💡 Oczekujący',  cls: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800' },
   APPROVED: { label: '✅ Zatwierdzony', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
   REJECTED: { label: '❌ Odrzucony',   cls: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200 dark:border-red-800' },
+  HOLD:     { label: '⏸️ Wstrzymany',   cls: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700' },
 };
-
-interface KaizenGoal {
-  title: string;
-  targetPoints: number;
-  period: string;
-  rewardInfo: string;
-  isScoringEnabled?: boolean;
-}
 
 export default function KaizenListPage() {
   const router = useRouter();
   const { kaizens, loading, fetchKaizens, deleteKaizen } = useKaizen();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isKaizenCommittee } = useAuth();
   const { showToast, showConfirm } = useToast();
   const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
+
+  const canManage = isAdmin || isKaizenCommittee || (user?.role && ['KOMISJA KAIZEN', 'KOMISJA_KAIZEN', 'KAIZEN_COMMITTEE'].includes(user.role.toUpperCase()));
 
   useAccessTracker({
     entityType: 'KAIZEN',
@@ -41,31 +36,26 @@ export default function KaizenListPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedKaizen, setSelectedKaizen] = useState<Kaizen | null>(null);
   const [historyTarget, setHistoryTarget] = useState<{ id: string; title: string } | null>(null);
-  const [teamGoal, setTeamGoal] = useState<KaizenGoal>({
-    title: 'Miesięczny Cel Kaizen Zespołu',
-    targetPoints: 500,
-    period: 'MONTHLY',
-    rewardInfo: 'Wyróżnienie Pomysłodawcy Miesiąca i premia zespołowa',
-  });
+  const [isScoringEnabled, setIsScoringEnabled] = useState(false);
 
   useEffect(() => {
-    fetchKaizens(kaizens.length === 0);
-    fetchGoal();
-  }, [fetchKaizens, kaizens.length]);
+    fetchKaizens(true);
+    fetchScoringStatus();
+  }, [fetchKaizens]);
 
-  const fetchGoal = async () => {
+  const fetchScoringStatus = async () => {
     try {
       const res = await fetch('/api/kaizen-scoring');
       if (res.ok) {
         const data = await res.json();
-        if (data.goal) setTeamGoal(data.goal);
+        if (data.goal?.isScoringEnabled !== undefined) {
+          setIsScoringEnabled(data.goal.isScoringEnabled);
+        }
       }
     } catch {
-      // Ignore goal fetch errors
+      // Ignore error
     }
   };
-
-
 
   const handleDelete = (id: string) => {
     showConfirm({
@@ -84,19 +74,19 @@ export default function KaizenListPage() {
     });
   };
 
-  const pendingCount = kaizens.filter(k => k.status === 'PENDING').length;
-  const approvedCount = kaizens.filter(k => k.status === 'APPROVED').length;
-  const rejectedCount = kaizens.filter(k => k.status === 'REJECTED').length;
+  const safeKaizens = Array.isArray(kaizens) ? kaizens.filter((k): k is Kaizen => Boolean(k && k.id)) : [];
 
-  const totalPointsAwarded = kaizens
+  const pendingCount = safeKaizens.filter(k => k.status === 'PENDING').length;
+  const approvedCount = safeKaizens.filter(k => k.status === 'APPROVED').length;
+  const rejectedCount = safeKaizens.filter(k => k.status === 'REJECTED').length;
+
+  const totalPointsAwarded = safeKaizens
     .filter(k => k.status === 'APPROVED')
     .reduce((sum, k) => sum + (k.pointsAwarded || 0), 0);
 
-  const goalPercentage = Math.min(100, Math.round((totalPointsAwarded / (teamGoal.targetPoints || 500)) * 100));
-
   const filteredKaizens = filterStatus
-    ? kaizens.filter(k => k.status === filterStatus)
-    : kaizens;
+    ? safeKaizens.filter(k => k.status === filterStatus)
+    : safeKaizens;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 max-w-7xl mx-auto">
@@ -110,7 +100,23 @@ export default function KaizenListPage() {
             Ewidencja i śledzenie wniosków ciągłego doskonalenia zgłoszonych przez zespół.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {canManage && (
+            <Link
+              href="/kaizen/wyplaty"
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-2"
+            >
+              💳 Wypłaty Nagród Kaizen
+            </Link>
+          )}
+          {canManage && (
+            <Link
+              href="/ustawienia/punktacja-kaizen"
+              className="px-3.5 py-2 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/80 dark:hover:bg-amber-900 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 rounded-xl font-bold text-sm shadow-xs transition-all flex items-center gap-2"
+            >
+              ⚙️ Ustawienia Punktacji
+            </Link>
+          )}
           <button
             onClick={() => setHistoryTarget({ id: 'KAIZEN_LISTA', title: 'Rejestr Wniosków Kaizen' })}
             className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-sm font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
@@ -132,44 +138,6 @@ export default function KaizenListPage() {
           </Link>
         </div>
       </div>
-
-      {/* Team Points Goal Progress Widget */}
-      {!loading && teamGoal.isScoringEnabled && (
-        <div className="p-4 sm:p-5 rounded-2xl border border-amber-300/80 dark:border-amber-800/80 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent shadow-sm space-y-2">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div className="flex items-center gap-3">
-              <span className="text-3xl p-2 bg-amber-500 text-white rounded-xl shadow-sm">🎯</span>
-              <div>
-                <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-base flex items-center gap-2">
-                  {teamGoal.title}
-                  <span className="px-2.5 py-0.5 bg-amber-500 text-white font-black text-xs rounded-full">
-                    {totalPointsAwarded} / {teamGoal.targetPoints} pkt ({goalPercentage}%)
-                  </span>
-                </h3>
-                <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
-                  {teamGoal.rewardInfo || 'Kaizen to wspólne korzyści dla całego zakładu!'}
-                </p>
-              </div>
-            </div>
-
-            {isAdmin && (
-              <Link
-                href="/ustawienia/punktacja-kaizen"
-                className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-900 dark:text-amber-200 rounded-xl text-xs font-bold transition-all border border-amber-300 dark:border-amber-800 shrink-0"
-              >
-                ⚙️ Ustawienia Punktacji
-              </Link>
-            )}
-          </div>
-
-          <div className="w-full bg-slate-200 dark:bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 shadow-inner">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-500"
-              style={{ width: `${goalPercentage}%` }}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Stats Cards */}
       {!loading && (
@@ -210,7 +178,8 @@ export default function KaizenListPage() {
           ['', 'Wszystkie Pomysły'],
           ['PENDING', '💡 Oczekujące'],
           ['APPROVED', '✅ Zatwierdzone'],
-          ['REJECTED', '❌ Odrzucone']
+          ['REJECTED', '❌ Odrzucone'],
+          ['HOLD', '⏸️ Wstrzymane']
         ].map(([val, label]) => (
           <button
             key={val}
@@ -269,7 +238,7 @@ export default function KaizenListPage() {
                             {st.label}
                           </span>
                         </div>
-                        {k.status === 'APPROVED' && Boolean(teamGoal.isScoringEnabled) && Boolean(k.pointsAwarded) && (
+                        {k.status === 'APPROVED' && Boolean(isScoringEnabled) && Boolean(k.pointsAwarded) && (
                           <div>
                             <span className="px-2 py-0.5 bg-amber-500 text-white font-black text-[10px] rounded-md">
                               ⭐ +{k.pointsAwarded} pkt
@@ -331,7 +300,7 @@ export default function KaizenListPage() {
           user={user}
           userPoints={totalPointsAwarded}
           submittedKaizensCount={kaizens.length}
-          isScoringEnabled={teamGoal.isScoringEnabled}
+          isScoringEnabled={isScoringEnabled}
         />
       )}
     </div>

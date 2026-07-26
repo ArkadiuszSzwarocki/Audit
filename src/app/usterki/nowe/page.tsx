@@ -38,6 +38,7 @@ export default function NowaUsterkaPage() {
   const [notifyEmails, setNotifyEmails] = useState('');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   useEffect(() => {
     if (user && !reportedBy) {
@@ -114,8 +115,9 @@ export default function NowaUsterkaPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !description.trim()) {
-      showToast('Tytuł i opis są wymagane', 'error');
+    setHasAttemptedSubmit(true);
+    if (!title.trim() || !description.trim() || !reportedBy.trim()) {
+      showToast('Wypełnij wszystkie wymagane pola zaznaczone na czerwono!', 'error');
       return;
     }
 
@@ -137,8 +139,9 @@ export default function NowaUsterkaPage() {
           assignedToId: assignedToId || null,
         }),
       });
-      const created = await res.json();
-      if (!res.ok) throw new Error(created.error);
+      const resJson = await res.json();
+      if (!res.ok) throw new Error(resJson.error || resJson.message || 'Błąd zapisu usterki');
+      const created = resJson.data || resJson;
 
       showToast('Zgłoszenie usterki zapisane!', 'success');
 
@@ -151,12 +154,12 @@ export default function NowaUsterkaPage() {
 
         downloadFaultReportEml(
           {
-            id: created.id,
-            title: created.title,
-            description: created.description,
-            severity: created.severity,
-            reportedBy: created.reportedBy,
-            dueDate: created.dueDate,
+            id: created?.id || 'usterka',
+            title: created?.title || title.trim(),
+            description: created?.description || description.trim(),
+            severity: created?.severity || severity,
+            reportedBy: created?.reportedBy || reportedBy.trim(),
+            dueDate: created?.dueDate || dueDate || null,
             areaName: area?.name,
             machineName: machine?.name,
             assignedToName: assignedUser?.name,
@@ -235,8 +238,17 @@ export default function NowaUsterkaPage() {
             placeholder="Jan Kowalski"
             value={reportedBy}
             onChange={e => setReportedBy(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500 font-bold"
+            className={`w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border rounded-xl text-sm outline-none font-bold transition-all ${
+              hasAttemptedSubmit && !reportedBy.trim()
+                ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-brand-500'
+            }`}
           />
+          {hasAttemptedSubmit && !reportedBy.trim() && (
+            <p className="text-xs font-bold text-red-500 mt-1 flex items-center gap-1">
+              ⚠️ Pole "Zgłaszający" jest wymagane!
+            </p>
+          )}
         </div>
 
         {/* Title */}
@@ -250,8 +262,17 @@ export default function NowaUsterkaPage() {
             placeholder="np. Wyciek oleju przy maszynie CNC-3"
             value={title}
             onChange={e => setTitle(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
+            className={`w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border rounded-xl text-sm outline-none transition-all ${
+              hasAttemptedSubmit && !title.trim()
+                ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-brand-500'
+            }`}
           />
+          {hasAttemptedSubmit && !title.trim() && (
+            <p className="text-xs font-bold text-red-500 mt-1 flex items-center gap-1">
+              ⚠️ Pole "Tytuł usterki" jest wymagane!
+            </p>
+          )}
         </div>
 
         {/* Description */}
@@ -265,8 +286,17 @@ export default function NowaUsterkaPage() {
             placeholder="Opisz dokładnie co się dzieje, gdzie i od kiedy..."
             value={description}
             onChange={e => setDescription(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500"
+            className={`w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 border rounded-xl text-sm outline-none transition-all ${
+              hasAttemptedSubmit && !description.trim()
+                ? 'border-red-500 ring-2 ring-red-500/30 bg-red-50/50 dark:bg-red-950/30'
+                : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-brand-500'
+            }`}
           />
+          {hasAttemptedSubmit && !description.trim() && (
+            <p className="text-xs font-bold text-red-500 mt-1 flex items-center gap-1">
+              ⚠️ Pole "Opis usterki" jest wymagane!
+            </p>
+          )}
         </div>
 
         {/* Area + Machine */}

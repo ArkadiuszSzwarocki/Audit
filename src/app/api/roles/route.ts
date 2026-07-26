@@ -40,6 +40,34 @@ export async function GET() {
       });
     }
 
+    // Ensure 'Komisja Kaizen' system role exists
+    const hasKomisja = roles.some(r => r.name.toUpperCase() === 'KOMISJA KAIZEN' || r.name.toUpperCase() === 'KAIZEN_COMMITTEE');
+    if (!hasKomisja) {
+      await prisma.role.create({
+        data: {
+          name: 'Komisja Kaizen',
+          description: '💡 Członek Komisji Kaizen — ocena, weryfikacja, zatwierdzanie/odrzucanie i cofanie wniosków oraz zatwierdzanie/cofanie wypłat Kaizen',
+          isSystem: true,
+          canCreateAudit: false,
+          canCompleteAudit: false,
+          canDeleteAudit: false,
+          canManageStructure: false,
+          canManageUsers: false,
+          canManageTypes: false,
+          canManageKaizen: true,
+        }
+      });
+
+      roles = await prisma.role.findMany({
+        orderBy: { createdAt: 'asc' },
+        include: {
+          _count: {
+            select: { users: true }
+          }
+        }
+      });
+    }
+
     // Inicjalizacja pozostałych domyślnych ról, jeśli baza jest pusta
     if (roles.length <= 1) {
       const defaultRoles = [
@@ -53,6 +81,18 @@ export async function GET() {
           canManageStructure: true,
           canManageUsers: true,
           canManageTypes: true,
+          canManageKaizen: true,
+        },
+        {
+          name: 'Komisja Kaizen',
+          description: '💡 Członek Komisji Kaizen — ocena, weryfikacja, zatwierdzanie/odrzucanie i cofanie wniosków oraz zatwierdzanie/cofanie wypłat Kaizen',
+          isSystem: true,
+          canCreateAudit: false,
+          canCompleteAudit: false,
+          canDeleteAudit: false,
+          canManageStructure: false,
+          canManageUsers: false,
+          canManageTypes: false,
           canManageKaizen: true,
         },
         {

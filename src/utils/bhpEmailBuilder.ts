@@ -126,11 +126,12 @@ export function downloadBhpEml(data: BhpEmailData, toEmails: string, baseUrl: st
     btoa(unescape(encodeURIComponent(html))),
   ].join('\r\n');
 
+  const safeTitle = (data?.title || 'BHP').replace(/\s+/g, '_').slice(0, 40);
   const blob = new Blob([emlContent], { type: 'message/rfc822' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `BHP_${data.title.replace(/\s+/g, '_').slice(0, 40)}.eml`;
+  a.download = `BHP_${safeTitle}.eml`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

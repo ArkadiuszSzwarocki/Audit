@@ -11,8 +11,11 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
-  const { isAdmin, user, logout } = useAuth();
+  const { isAdmin, isKaizenCommittee, user, logout } = useAuth();
   const pathname = usePathname();
+
+  const userRoleUpper = String(user?.role || '').toUpperCase();
+  const canManageKaizen = isAdmin || isKaizenCommittee || ['KOMISJA KAIZEN', 'KOMISJA_KAIZEN', 'KAIZEN_COMMITTEE'].includes(userRoleUpper);
 
   // Collapsible section state (default: both open)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -101,6 +104,15 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
         </svg>
       ),
     },
+    ...(canManageKaizen ? [{
+      name: 'Wypłaty Kaizen (Komisja)',
+      href: '/kaizen/wyplaty',
+      icon: (
+        <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+      ),
+    }] : []),
     {
       name: 'Szkolenia & Badania',
       href: '/struktura/szkolenia',

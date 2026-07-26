@@ -32,7 +32,9 @@ export async function GET() {
     const canSeeAll = session.isAdmin || session.isZarzad || userRoleUpper === 'ZARZAD' || userRoleUpper === 'ZARZĄD';
 
     const users = await prisma.user.findMany({
-      where: canSeeAll ? undefined : { id: session.id },
+      where: canSeeAll
+        ? { NOT: { login: { in: ['MasterAdmin', 'masteradmin'] } } }
+        : { id: session.id },
       select: {
         id: true,
         login: true,

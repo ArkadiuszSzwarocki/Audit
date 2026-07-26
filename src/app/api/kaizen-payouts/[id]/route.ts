@@ -27,16 +27,19 @@ export async function PATCH(
 ) {
   try {
     const user = await getSessionUser();
-    if (user?.role && ['OPERATOR', 'AUDYTOR', 'AUDITOR'].includes(user.role.toUpperCase())) {
-      return NextResponse.json({ error: 'Brak uprawnień do zatwierdzania wypłat' }, { status: 403 });
+    const userRoleUpper = String(user?.role || '').toUpperCase();
+    const isAllowed = userRoleUpper === 'ADMIN' || userRoleUpper === 'ADMINISTRATOR' || userRoleUpper === 'ZARZAD' || userRoleUpper === 'ZARZĄD' || userRoleUpper === 'KOMISJA KAIZEN' || userRoleUpper === 'KOMISJA_KAIZEN' || userRoleUpper === 'KAIZEN_COMMITTEE';
+
+    if (!user || !isAllowed) {
+      return NextResponse.json({ error: 'Brak uprawnień do zatwierdzania / cofania wypłat' }, { status: 403 });
     }
 
     const { id } = await params;
     const body = await request.json();
-    const { status } = body; // APPROVED or REJECTED
+    const { status } = body; // APPROVED, REJECTED, or PENDING
 
-    if (!status || !['APPROVED', 'REJECTED'].includes(status)) {
-      return NextResponse.json({ error: 'Nieprawidłowy status (wymagany: APPROVED lub REJECTED)' }, { status: 400 });
+    if (!status || !['APPROVED', 'REJECTED', 'PENDING'].includes(status)) {
+      return NextResponse.json({ error: 'Nieprawidłowy status (wymagany: APPROVED, REJECTED lub PENDING)' }, { status: 400 });
     }
 
     const payout = await prisma.kaizenPayoutRequest.findUnique({
@@ -51,16 +54,16 @@ export async function PATCH(
       where: { id },
       data: {
         status,
-        approvedBy: user?.name || 'Komisja Kaizen',
-        approvedAt: new Date(),
+        approvedBy: status === 'PENDING' ? null : (user?.name || 'Komisja Kaizen'),
+        approvedAt: status === 'PENDING' ? null : new Date(),
       },
     });
 
-    // If status === 'APPROVED', mark referenced Kaizens as paid out!
-    if (status === 'APPROVED') {
-      try {
-        const kaizenIds: string[] = JSON.parse(payout.kaizenIds || '[]');
-        if (kaizenIds.length > 0) {
+    // Handle Kaizen items isPaidOut state update
+    try {
+      const kaizenIds: string[] = JSON.parse(payout.kaizenIds || '[]');
+      if (kaizenIds.length > 0) {
+        if (status === 'APPROVED') {
           await prisma.kaizen.updateMany({
             where: { id: { in: kaizenIds } },
             data: {
@@ -69,10 +72,20 @@ export async function PATCH(
               payoutDocNum: payout.docNumber,
             },
           });
+        } else {
+          // If status is PENDING or REJECTED, revoke paid out state
+          await prisma.kaizen.updateMany({
+            where: { id: { in: kaizenIds } },
+            data: {
+              isPaidOut: false,
+              paidOutAt: null,
+              payoutDocNum: null,
+            },
+          });
         }
-      } catch (err) {
-        console.error('Błąd oznaczania Kaizen jako wypłaconych:', err);
       }
+    } catch (err) {
+      console.error('Błąd aktualizacji stanu rozliczenia wniosków Kaizen:', err);
     }
 
     return NextResponse.json(updatedPayout);

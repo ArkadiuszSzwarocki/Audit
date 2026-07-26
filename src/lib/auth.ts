@@ -12,6 +12,7 @@ export interface AuthSession {
   role: string;
   isZarzad: boolean;
   isAdmin: boolean;
+  isKaizenCommittee: boolean;
 }
 
 export async function verifyJwtToken(token: string): Promise<jose.JWTPayload | null> {
@@ -41,6 +42,7 @@ export async function getAuthSession(): Promise<AuthSession | null> {
       const roleStr = String(payload.role || '').toUpperCase();
       const isZarzad = roleStr === 'ZARZAD' || roleStr === 'ZARZĄD' || roleStr === 'BOARD';
       const isAdmin = isZarzad || roleStr === 'ADMIN' || roleStr === 'ADMINISTRATOR';
+      const isKaizenCommittee = isAdmin || roleStr === 'KOMISJA KAIZEN' || roleStr === 'KOMISJA_KAIZEN' || roleStr === 'KAIZEN_COMMITTEE';
 
       return {
         id: payload.id as string,
@@ -49,6 +51,7 @@ export async function getAuthSession(): Promise<AuthSession | null> {
         role: payload.role as string,
         isZarzad,
         isAdmin,
+        isKaizenCommittee,
       };
     }
   }
@@ -63,6 +66,7 @@ export async function getAuthSession(): Promise<AuthSession | null> {
       role: 'ADMIN',
       isZarzad: false,
       isAdmin: true,
+      isKaizenCommittee: true,
     };
   }
 
@@ -77,4 +81,9 @@ export async function checkIsAdmin(): Promise<boolean> {
 export async function checkIsZarzad(): Promise<boolean> {
   const session = await getAuthSession();
   return session ? session.isZarzad : false;
+}
+
+export async function checkIsKaizenCommittee(): Promise<boolean> {
+  const session = await getAuthSession();
+  return session ? session.isKaizenCommittee : false;
 }

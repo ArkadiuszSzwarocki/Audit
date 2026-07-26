@@ -20,6 +20,7 @@ interface User {
   notifyFaults?: boolean;
   notifyKaizen?: boolean;
   notifyAudits?: boolean;
+  isKaizenCommittee?: boolean;
   createdAt: string;
 }
 
@@ -48,6 +49,7 @@ export default function UsersPage() {
   const [notifyFaults, setNotifyFaults] = useState(false);
   const [notifyKaizen, setNotifyKaizen] = useState(false);
   const [notifyAudits, setNotifyAudits] = useState(false);
+  const [isKaizenCommittee, setIsKaizenCommittee] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Edit Modal State
@@ -62,6 +64,7 @@ export default function UsersPage() {
   const [editNotifyFaults, setEditNotifyFaults] = useState(false);
   const [editNotifyKaizen, setEditNotifyKaizen] = useState(false);
   const [editNotifyAudits, setEditNotifyAudits] = useState(false);
+  const [editIsKaizenCommittee, setEditIsKaizenCommittee] = useState(false);
   const [editPassword, setEditPassword] = useState('');
   const [showEditPasswordInput, setShowEditPasswordInput] = useState(false);
 
@@ -174,6 +177,7 @@ export default function UsersPage() {
           notifyFaults,
           notifyKaizen,
           notifyAudits,
+          isKaizenCommittee,
         }),
       });
       const data = await res.json();
@@ -193,6 +197,7 @@ export default function UsersPage() {
       setNotifyFaults(false);
       setNotifyKaizen(false);
       setNotifyAudits(false);
+      setIsKaizenCommittee(false);
       fetchUsers();
     } catch (err: any) {
       showToast(err.message, 'error');
@@ -213,6 +218,7 @@ export default function UsersPage() {
     setEditNotifyFaults(Boolean(u.notifyFaults));
     setEditNotifyKaizen(Boolean(u.notifyKaizen));
     setEditNotifyAudits(Boolean(u.notifyAudits));
+    setEditIsKaizenCommittee(Boolean(u.isKaizenCommittee));
     setEditPassword('');
     setShowEditPasswordInput(false);
   };
@@ -234,6 +240,7 @@ export default function UsersPage() {
         notifyFaults: editNotifyFaults,
         notifyKaizen: editNotifyKaizen,
         notifyAudits: editNotifyAudits,
+        isKaizenCommittee: editIsKaizenCommittee,
       };
 
       if (showEditPasswordInput && editPassword.trim()) {
@@ -359,6 +366,13 @@ export default function UsersPage() {
       return (
         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-500/15 border border-purple-500/30 text-purple-600 dark:text-purple-400 font-extrabold text-xs rounded-full shadow-sm">
           ⚡ ADMIN
+        </span>
+      );
+    }
+    if (r === 'KOMISJA KAIZEN' || r === 'KOMISJA_KAIZEN' || r === 'KAIZEN_COMMITTEE') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-extrabold text-xs rounded-full shadow-sm">
+          💡 Komisja Kaizen
         </span>
       );
     }
@@ -536,8 +550,9 @@ export default function UsersPage() {
                   <option value="OPERATOR">🛠️ Operator Produkcji (Domyślny)</option>
                   <option value="ADMIN">⚡ Administrator (Zarządzanie)</option>
                   <option value="ZARZAD">👑 Zarząd (Nadrzędna Dyrekcja)</option>
+                  <option value="Komisja Kaizen">💡 Komisja Kaizen (Weryfikacja & Wypłaty)</option>
                   {availableRoles
-                    .filter(r => r.name !== 'Administrator' && r.name !== 'Operator Produkcji' && r.name !== 'Zarząd' && r.name !== 'ZARZAD')
+                    .filter(r => r.name !== 'Administrator' && r.name !== 'Operator Produkcji' && r.name !== 'Zarząd' && r.name !== 'ZARZAD' && r.name !== 'Komisja Kaizen')
                     .map(r => (
                       <option key={r.id} value={r.name}>
                         {r.name}
@@ -634,6 +649,19 @@ export default function UsersPage() {
                   </label>
                 </div>
               </div>
+
+              {/* Kaizen Committee Privilege Checkbox */}
+              <div className="p-3.5 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-2xl">
+                <label className="flex items-center gap-2.5 text-xs font-extrabold text-amber-950 dark:text-amber-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isKaizenCommittee}
+                    onChange={e => setIsKaizenCommittee(e.target.checked)}
+                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <span>💡 Członek Komisji Kaizen (Uprawnienia do oceny, przyznawania punktów i akceptacji wypłat)</span>
+                </label>
+              </div>
             </div>
 
             <div className="pt-3 flex justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
@@ -690,6 +718,7 @@ export default function UsersPage() {
               <option value="OPERATOR">🛠️ Operator</option>
               <option value="ADMIN">⚡ Admin</option>
               <option value="ZARZAD">👑 Zarząd</option>
+              <option value="Komisja Kaizen">💡 Komisja Kaizen</option>
               <option value="KONTROLA_JAKOSCI">🛡️ Kontrola Jakości</option>
             </select>
           </div>
@@ -762,7 +791,16 @@ export default function UsersPage() {
                     </td>
 
                     {/* Role */}
-                    <td className="py-4 px-4">{renderRoleBadge(u.role)}</td>
+                    <td className="py-4 px-4 space-y-1">
+                      <div>{renderRoleBadge(u.role)}</div>
+                      {u.isKaizenCommittee && (
+                        <div>
+                          <span className="px-2 py-0.5 bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[10px] font-extrabold rounded-md inline-block">
+                            💡 Komisja Kaizen
+                          </span>
+                        </div>
+                      )}
+                    </td>
 
                     {/* Rejon & Module Subscriptions */}
                     <td className="py-4 px-4 text-xs space-y-1">
@@ -987,8 +1025,9 @@ export default function UsersPage() {
                   <option value="OPERATOR">🛠️ Operator Produkcji (Domyślny)</option>
                   <option value="ADMIN">⚡ Administrator (Zarządzanie)</option>
                   <option value="ZARZAD">👑 Zarząd (Nadrzędna Dyrekcja)</option>
+                  <option value="Komisja Kaizen">💡 Komisja Kaizen (Weryfikacja & Wypłaty)</option>
                   {availableRoles
-                    .filter(r => r.name !== 'Administrator' && r.name !== 'Operator Produkcji' && r.name !== 'Zarząd' && r.name !== 'ZARZAD')
+                    .filter(r => r.name !== 'Administrator' && r.name !== 'Operator Produkcji' && r.name !== 'Zarząd' && r.name !== 'ZARZAD' && r.name !== 'Komisja Kaizen')
                     .map(r => (
                       <option key={r.id} value={r.name}>
                         {r.name}
@@ -1084,6 +1123,19 @@ export default function UsersPage() {
                     <span>📋 Audyty</span>
                   </label>
                 </div>
+              </div>
+
+              {/* Kaizen Committee Privilege Checkbox */}
+              <div className="p-3.5 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-2xl">
+                <label className="flex items-center gap-2.5 text-xs font-extrabold text-amber-950 dark:text-amber-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editIsKaizenCommittee}
+                    onChange={e => setEditIsKaizenCommittee(e.target.checked)}
+                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <span>💡 Członek Komisji Kaizen (Uprawnienia do oceny, przyznawania punktów i akceptacji wypłat)</span>
+                </label>
               </div>
 
               {/* Password Option in Edit Modal */}

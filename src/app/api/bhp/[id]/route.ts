@@ -47,10 +47,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       );
     } else if (body.action === 'assign') {
       report = await service.assignTo(id, body.assignedToId);
-    } else if (body.status) {
-      report = await service.updateStatus(id, body.status);
     } else {
-      return NextResponse.json({ error: 'Nieznana akcja' }, { status: 400 });
+      const updateData: any = {};
+      if (body.status !== undefined) updateData.status = body.status;
+      if (body.actionTaken !== undefined) updateData.actionTaken = body.actionTaken;
+      if (body.hazardCategory !== undefined) updateData.hazardCategory = body.hazardCategory;
+      if (body.probability !== undefined) updateData.probability = Number(body.probability);
+      if (body.injurySeverity !== undefined) updateData.injurySeverity = Number(body.injurySeverity);
+      if (body.assignedToId !== undefined) updateData.assignedToId = body.assignedToId || null;
+      if (body.dueDate !== undefined) updateData.dueDate = body.dueDate ? new Date(body.dueDate) : null;
+      if (body.notifyEmails !== undefined) updateData.notifyEmails = body.notifyEmails;
+      if (body.fixPhotoUrl !== undefined) updateData.fixPhotoUrl = body.fixPhotoUrl;
+
+      if (updateData.probability && updateData.injurySeverity) {
+        const score = updateData.probability * updateData.injurySeverity;
+        updateData.riskScore = score;
+        updateData.riskLevel = score <= 6 ? 'LOW' : score <= 14 ? 'MEDIUM' : 'HIGH';
+      }
+
+      report = await service.update(id, updateData);
     }
 
     return NextResponse.json(report);

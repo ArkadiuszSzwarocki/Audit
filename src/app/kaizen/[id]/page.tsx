@@ -30,8 +30,10 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
   const resolvedParams = use(params);
   const router = useRouter();
   const { fetchKaizenById, updateKaizenStatus } = useKaizen();
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, isKaizenCommittee, user } = useAuth();
   const { showToast, showConfirm } = useToast();
+
+  const canManage = isAdmin || isKaizenCommittee || (user?.role && ['KOMISJA KAIZEN', 'KOMISJA_KAIZEN', 'KAIZEN_COMMITTEE'].includes(user.role.toUpperCase()));
   
   const [kaizen, setKaizen] = useState<Kaizen | null>(null);
   const [loading, setLoading] = useState(true);
@@ -360,7 +362,7 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
 
-        {isAdmin ? (
+        {canManage ? (
           <div className="glass-card p-6 md:p-8 bg-brand-50 dark:bg-brand-900/10 border-brand-200 dark:border-brand-800 space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-brand-200 dark:border-brand-800 pb-4">
               <div>
