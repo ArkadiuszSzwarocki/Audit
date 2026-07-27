@@ -62,7 +62,8 @@ export function useAudits() {
       body: JSON.stringify({ title, areaId, machineId, auditTypeId }),
     });
     if (!res.ok) throw new Error('Nie udało się utworzyć audytu');
-    return res.json();
+    const response = await res.json();
+    return response.data || response;
   };
 
   const enhanceDescription = async (rawDescription: string) => {

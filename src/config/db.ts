@@ -1,4 +1,4 @@
-import { PrismaClient } from '@/generated/prisma/client';
+import { PrismaClient } from '@/generated/prisma';
 import { PrismaLibSql } from '@prisma/adapter-libsql';
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
@@ -12,7 +12,8 @@ export function getPrismaClient(): PrismaClient {
     !(globalForPrisma.prisma as any).auditTypeQuestion ||
     !(globalForPrisma.prisma as any).kaizenScoringCategory ||
     !(globalForPrisma.prisma as any).bhpHazardReport ||
-    !(globalForPrisma.prisma as any).qualityReport
+    !(globalForPrisma.prisma as any).qualityReport ||
+    !(globalForPrisma.prisma as any).helpDeskTicket
   ) {
     globalForPrisma.prisma = new PrismaClient({
       adapter,

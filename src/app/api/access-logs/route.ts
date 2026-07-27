@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       body = {};
     }
 
-    const { action, logId, userLogin, userName, entityType, entityId, entityTitle, durationSec } = body;
+    const { action, logId, userLogin, userName, entityType, entityId, entityTitle, durationSec, actionCount, actionTypes, engagementLevel } = body;
 
     // Get IP address from headers
     const forwarded = req.headers.get('x-forwarded-for');
@@ -63,6 +63,9 @@ export async function POST(req: NextRequest) {
           openedAt: new Date(),
           closedAt: new Date(),
           durationSec: 0,
+          actionCount: 0,
+          actionTypes: '[]',
+          engagementLevel: 'SKIMMED',
           ipAddress,
         },
       });
@@ -83,11 +86,18 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Brak logId' }, { status: 400 });
       }
 
+      const finalActionCount = Math.max(0, Number(actionCount) || 0);
+      const finalActionTypes = Array.isArray(actionTypes) ? actionTypes : [];
+      const finalEngagementLevel = (engagementLevel || 'SKIMMED').trim();
+
       const updatedLog = await prisma.accessLog.update({
         where: { id: logId },
         data: {
           closedAt: new Date(),
           durationSec: Math.max(0, Number(durationSec) || 0),
+          actionCount: finalActionCount,
+          actionTypes: JSON.stringify(finalActionTypes),
+          engagementLevel: finalEngagementLevel,
         },
       });
 

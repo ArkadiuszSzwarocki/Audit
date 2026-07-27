@@ -38,6 +38,16 @@
   ],
   "exclude": [
     "node_modules",
-    ".next"
+    ".next",
+    "inspect-backup-prisma.ts",
+    "inspect-backup-schema.mjs",
+    "inspect-backup-sql.mjs",
+    "inspect-backup.js",
+    "seed-kaizen.ts",
+    "seed.ts",
+    "seed.js",
+    "scripts/**",
+    "scratch/**",
+    "backups/**"
   ]
 }

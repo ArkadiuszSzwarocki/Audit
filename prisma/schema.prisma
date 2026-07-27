@@ -8,54 +8,53 @@ datasource db {
 }
 
 model Area {
-  id           String    @id @default(uuid())
-  name         String
-  description  String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  machines     Machine[]
-  audits       Audit[]
-  documents    Document[]
-  kaizens      Kaizen[]
-  faultReports FaultReport[]
+  id               String            @id @default(uuid())
+  name             String
+  description      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  audits           Audit[]
   bhpHazardReports BhpHazardReport[]
+  documents        Document[]
+  faultReports     FaultReport[]
+  kaizens          Kaizen[]
+  machines         Machine[]
   qualityReports   QualityReport[]
-  responsibleUsers User[] @relation("UserResponsibleArea")
+  responsibleUsers User[]            @relation("UserResponsibleArea")
 }
 
 model Machine {
-  id           String   @id @default(uuid())
-  name         String
-  description  String?
-  areaId       String
-  area         Area     @relation(fields: [areaId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  audits       Audit[]
-  documents    Document[]
-  kaizens      Kaizen[]
-  faultReports FaultReport[]
+  id               String            @id @default(uuid())
+  name             String
+  description      String?
+  areaId           String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  audits           Audit[]
   bhpHazardReports BhpHazardReport[]
+  documents        Document[]
+  faultReports     FaultReport[]
+  kaizens          Kaizen[]
+  area             Area              @relation(fields: [areaId], references: [id], onDelete: Cascade)
   qualityReports   QualityReport[]
 
   @@index([areaId])
 }
 
 model Audit {
-  id           String        @id @default(uuid())
+  id           String                @id @default(uuid())
   title        String
   areaId       String
   machineId    String?
-  status       String        @default("DRAFT") // DRAFT, IN_PROGRESS, COMPLETED
+  status       String                @default("DRAFT")
   auditTypeId  String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  
-  area         Area          @relation(fields: [areaId], references: [id], onDelete: Restrict)
-  machine      Machine?      @relation(fields: [machineId], references: [id], onDelete: Restrict)
-  auditType    AuditType?    @relation(fields: [auditTypeId], references: [id], onDelete: SetNull)
-  observations Observation[]
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  auditType    AuditType?            @relation(fields: [auditTypeId], references: [id])
+  machine      Machine?              @relation(fields: [machineId], references: [id], onDelete: Restrict)
+  area         Area                  @relation(fields: [areaId], references: [id])
   answers      AuditQuestionAnswer[]
+  observations Observation[]
 
   @@index([status])
   @@index([areaId])
@@ -64,41 +63,34 @@ model Audit {
 }
 
 model AuditType {
-  id          String   @id @default(uuid())
+  id          String              @id @default(uuid())
   name        String
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
   audits      Audit[]
   questions   AuditTypeQuestion[]
 }
 
 model Observation {
-  id           String   @id @default(uuid())
-  auditId      String
-  description  String
-  aiSuggestion String?
-  photoUrl     String?  // Zdjecie dodane przez audytora
-  severity     String?  @default("MODERATE") // CRITICAL, MODERATE, MINOR
-  dueDate      DateTime? // Termin wykonania
-  
-  // Pola dla etapu 4 (Operatorzy)
-  isFixed      Boolean  @default(false)
-  fixPhotoUrl  String?
-  fixedBy      String?
-  fixedAt      DateTime?
+  id              String                 @id @default(uuid())
+  auditId         String
+  description     String
+  aiSuggestion    String?
+  photoUrl        String?
+  severity        String?                @default("MODERATE")
+  dueDate         DateTime?
+  isFixed         Boolean                @default(false)
+  fixPhotoUrl     String?
+  fixedBy         String?
+  fixedAt         DateTime?
   operatorComment String?
-  
-  assignedToId String?
-  assignedTo   User?    @relation(fields: [assignedToId], references: [id])
-  
-  extensions   ObservationExtension[]
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  audit        Audit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  assignedToId    String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  audit           Audit                  @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  assignedTo      User?                  @relation(fields: [assignedToId], references: [id])
+  extensions      ObservationExtension[]
 
   @@index([auditId])
   @@index([assignedToId])
@@ -109,61 +101,54 @@ model Observation {
 model ObservationExtension {
   id              String      @id @default(uuid())
   observationId   String
-  observation     Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
   previousDueDate DateTime?
-  newDueDate       DateTime
-  reason          String      // Powód przedłużenia
-  requestedBy     String      // Kto wnioskował
+  newDueDate      DateTime
+  reason          String
+  requestedBy     String
   createdAt       DateTime    @default(now())
+  observation     Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
 
   @@index([observationId])
 }
 
 model Document {
-  id           String   @id @default(uuid())
-  title        String
-  category     String   // np. "5S", "BHP", "Instrukcja obsługi"
-  url          String   // Ścieżka do pliku PDF/zdjęcia
-  
-  // Opcjonalne przypisanie do konkretnej maszyny lub rejonu
-  areaId       String?
-  machineId    String?
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  area         Area?    @relation(fields: [areaId], references: [id], onDelete: Cascade)
-  machine      Machine? @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  title     String
+  category  String
+  url       String
+  areaId    String?
+  machineId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  machine   Machine? @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  area      Area?    @relation(fields: [areaId], references: [id], onDelete: Cascade)
 
   @@index([category])
   @@index([areaId])
 }
 
 model Kaizen {
-  id            String   @id @default(uuid())
-  title         String
-  description   String
-  benefits      String?  // Jakie korzyści przyniesie pomysł
-  submittedBy   String   // Imię i nazwisko pomysłodawcy
-  status        String   @default("PENDING") // PENDING, APPROVED, REJECTED, HOLD
-  committeeNote String?  // Uzasadnienie od komisji
-  photoUrl      String?  // Zdjęcie ilustrujące pomysł/problem
-  pointsAwarded Int?     @default(0) // Przyznane punkty Kaizen
-  pointsCategory String? // Kategoria punktowa (np. Oszczędność Czasu)
-  
-  isPaidOut     Boolean   @default(false) // Czy nagroda za ten Kaizen została wypłacona
-  paidOutAt     DateTime?                 // Data zatwierdzenia wypłaty
-  payoutDocNum  String?                   // Numer wniosku z Załącznika nr 3
-
-  areaId        String?
-  machineId     String?
-  assignedToId  String?
-  area          Area?    @relation(fields: [areaId], references: [id], onDelete: Cascade)
-  machine       Machine? @relation(fields: [machineId], references: [id], onDelete: Cascade)
-  assignedTo    User?    @relation("KaizenAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String    @id @default(uuid())
+  title          String
+  description    String
+  benefits       String?
+  submittedBy    String
+  status         String    @default("PENDING")
+  committeeNote  String?
+  photoUrl       String?
+  pointsAwarded  Int?      @default(0)
+  pointsCategory String?
+  isPaidOut      Boolean   @default(false)
+  paidOutAt      DateTime?
+  payoutDocNum   String?
+  areaId         String?
+  machineId      String?
+  assignedToId   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  assignedTo     User?     @relation("KaizenAssignedTo", fields: [assignedToId], references: [id])
+  machine        Machine?  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  area           Area?     @relation(fields: [areaId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([areaId])
@@ -173,22 +158,22 @@ model Kaizen {
 }
 
 model KaizenPayoutRequest {
-  id            String    @id @default(uuid())
-  docNumber     String    @unique
-  userName      String
-  userLogin     String?
-  bankAccount   String?
-  kaizenIds     String    // JSON z listą ID wniosków Kaizen
-  kaizenTitles  String?   // Wyciągnięte tytuły dla podglądu
-  totalPoints   Int       @default(0)
-  totalAmount   Float     @default(0) // Kwota w zł netto
-  rewardType    String    @default("Premia finansowa z programu Kaizen")
-  notes         String?
-  status        String    @default("PENDING") // PENDING, APPROVED, REJECTED
-  approvedBy    String?
-  approvedAt    DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String    @id @default(uuid())
+  docNumber    String    @unique
+  userName     String
+  userLogin    String?
+  bankAccount  String?
+  kaizenIds    String
+  kaizenTitles String?
+  totalPoints  Int       @default(0)
+  totalAmount  Float     @default(0)
+  rewardType   String    @default("Premia finansowa z programu Kaizen")
+  notes        String?
+  status       String    @default("PENDING")
+  approvedBy   String?
+  approvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([status])
   @@index([userLogin])
@@ -199,8 +184,6 @@ model Role {
   name               String   @unique
   description        String?
   isSystem           Boolean  @default(false)
-
-  // Flagi dostępu do poszczególnych funkcji
   canCreateAudit     Boolean  @default(false)
   canCompleteAudit   Boolean  @default(false)
   canDeleteAudit     Boolean  @default(false)
@@ -208,92 +191,78 @@ model Role {
   canManageUsers     Boolean  @default(false)
   canManageTypes     Boolean  @default(false)
   canManageKaizen    Boolean  @default(false)
-
-  users              User[]
-
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+  users              User[]
 }
 
 model User {
-  id           String   @id @default(uuid())
-  login        String   @unique
-  name         String
-  email        String?  // Adres email do powiadomień
-  passwordHash String
-  role         String   @default("OPERATOR")
-  
-  roleId       String?
-  userRole     Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
-
-  // Przypisanie odpowiedzialności za Rejon Zakładu
-  responsibleAreaId String?
-  responsibleArea   Area?   @relation("UserResponsibleArea", fields: [responsibleAreaId], references: [id], onDelete: SetNull)
-
-  // Moduły, za które użytkownik otrzymuje powiadomienia i jest wskazywany jako odpowiedzialny
-  notifyBhp     Boolean @default(false)
-  notifyQuality Boolean @default(false)
-  notifyFaults  Boolean @default(false)
-  notifyKaizen  Boolean @default(false)
-  notifyAudits  Boolean @default(false)
-
-  // Flaga uprawnień członka Komisji Kaizen
-  isKaizenCommittee Boolean @default(false)
-
-  assignedTasks            Observation[]
-  assignedFaultReports     FaultReport[]
-  assignedBhpHazardReports BhpHazardReport[]
-  assignedQualityReports   QualityReport[]
-  assignedKaizens          Kaizen[] @relation("KaizenAssignedTo")
-  trainings                UserTraining[]
-  createdBugReports        BugReport[]
-  sentBugMessages          BugReportMessage[]
-
-  bhpTrainingDueDate          DateTime? // Data ważności szkolenia BHP pracownika
-  dismissedBhpNoticeThreshold Int?      // Ostatnio odrzucony progiem powiadomienia (np. 30, 20, 15, 10, 5, 4, 3, 2, 1, 0)
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                          String             @id @default(uuid())
+  login                       String             @unique
+  name                        String
+  email                       String?
+  passwordHash                String
+  role                        String             @default("OPERATOR")
+  roleId                      String?
+  responsibleAreaId           String?
+  notifyBhp                   Boolean            @default(false)
+  notifyQuality               Boolean            @default(false)
+  notifyFaults                Boolean            @default(false)
+  notifyKaizen                Boolean            @default(false)
+  notifyAudits                Boolean            @default(false)
+  isKaizenCommittee           Boolean            @default(false)
+  bhpTrainingDueDate          DateTime?
+  dismissedBhpNoticeThreshold Int?
+  createdAt                   DateTime           @default(now())
+  updatedAt                   DateTime           @updatedAt
+  assignedBhpHazardReports    BhpHazardReport[]
+  createdBugReports           BugReport[]
+  sentBugMessages             BugReportMessage[]
+  assignedFaultReports        FaultReport[]
+  approvedTickets             HelpDeskTicket[]   @relation("ApprovedTickets")
+  createdTickets              HelpDeskTicket[]   @relation("CreatedTickets")
+  assignedKaizens             Kaizen[]           @relation("KaizenAssignedTo")
+  assignedTasks               Observation[]
+  assignedQualityReports      QualityReport[]
+  responsibleArea             Area?              @relation("UserResponsibleArea", fields: [responsibleAreaId], references: [id])
+  userRole                    Role?              @relation(fields: [roleId], references: [id])
+  trainings                   UserTraining[]
 
   @@index([role])
   @@index([responsibleAreaId])
 }
 
 model ObservationSeverity {
-  id          String   @id @default(uuid())
-  name        String   // np. "🔴 Krytyczna Niezgodność", "🟢 Dobra Praktyka"
-  color       String   @default("red") // red, orange, yellow, green, blue, purple
-  isPositive  Boolean  @default(false) // Jeśli true -> nie trafia do naprawy przez operatorów
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(uuid())
+  name       String
+  color      String   @default("red")
+  isPositive Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model FaultReport {
-  id           String   @id @default(uuid())
-  title        String
-  description  String
-  severity     String   @default("MODERATE") // CRITICAL, MODERATE, MINOR
-  status       String   @default("OPEN")     // OPEN, IN_PROGRESS, RESOLVED, CLOSED
-  reportedBy   String   // Imię i nazwisko zgłaszającego
-  photoUrl     String?  // Zdjęcie usterki
-  fixPhotoUrl  String?  // Zdjęcie potwierdzenia naprawy
-  fixedBy      String?  // Kto naprawił
-  fixedAt      DateTime?
+  id              String    @id @default(uuid())
+  title           String
+  description     String
+  severity        String    @default("MODERATE")
+  status          String    @default("OPEN")
+  reportedBy      String
+  photoUrl        String?
+  fixPhotoUrl     String?
+  fixedBy         String?
+  fixedAt         DateTime?
   operatorComment String?
-  notifyEmails String?  // Lista emaili powiadomień (CSV)
-
-  dueDate      DateTime?
-
-  areaId       String?
-  machineId    String?
-  area         Area?    @relation(fields: [areaId], references: [id], onDelete: SetNull)
-  machine      Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
-
-  assignedToId String?
-  assignedTo   User?    @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  notifyEmails    String?
+  dueDate         DateTime?
+  areaId          String?
+  machineId       String?
+  assignedToId    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  assignedTo      User?     @relation(fields: [assignedToId], references: [id])
+  machine         Machine?  @relation(fields: [machineId], references: [id])
+  area            Area?     @relation(fields: [areaId], references: [id])
 
   @@index([status])
   @@index([areaId])
@@ -303,34 +272,34 @@ model FaultReport {
 }
 
 model AuditTypeQuestion {
-  id             String            @id @default(uuid())
-  auditTypeId    String
-  auditType      AuditType         @relation(fields: [auditTypeId], references: [id], onDelete: Cascade)
-  chapter        String            @default("Ogólne") // np. "1. Kierownictwo", "2. HACCP", "3. Zasoby"
-  code           String?           // np. "1.2.1", "2.1.4"
-  questionText   String
-  guidance       String?           // Wytłumaczenie / Wymóg standardu IFS
-  isKnockOut     Boolean           @default(false) // Pytanie krytyczne KO (IFS Food)
-  sortOrder      Int               @default(0)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  answers        AuditQuestionAnswer[]
+  id           String                @id @default(uuid())
+  auditTypeId  String
+  chapter      String                @default("Ogólne")
+  code         String?
+  questionText String
+  guidance     String?
+  isKnockOut   Boolean               @default(false)
+  sortOrder    Int                   @default(0)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  answers      AuditQuestionAnswer[]
+  auditType    AuditType             @relation(fields: [auditTypeId], references: [id], onDelete: Cascade)
 
   @@index([auditTypeId])
 }
 
 model AuditQuestionAnswer {
-  id           String            @id @default(uuid())
-  auditId      String
-  audit        Audit             @relation(fields: [auditId], references: [id], onDelete: Cascade)
-  questionId   String
-  question     AuditTypeQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  status       String            @default("PENDING") // PENDING, OK, NOK, GOOD_PRACTICE, NA
-  severity     String?           // np. "🔴 IFS KO (Knock-Out)", "🔴 Krytyczna Niezgodność"
-  comment      String?
-  photoUrl     String?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  id         String            @id @default(uuid())
+  auditId    String
+  questionId String
+  status     String            @default("PENDING")
+  severity   String?
+  comment    String?
+  photoUrl   String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  question   AuditTypeQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  audit      Audit             @relation(fields: [auditId], references: [id], onDelete: Cascade)
 
   @@unique([auditId, questionId])
   @@index([auditId])
@@ -338,17 +307,20 @@ model AuditQuestionAnswer {
 }
 
 model AccessLog {
-  id           String   @id @default(uuid())
-  userLogin    String
-  userName     String
-  entityType   String   // AUDIT, TASK, KAIZEN, FAULT
-  entityId     String
-  entityTitle  String
-  openedAt     DateTime @default(now())
-  closedAt     DateTime?
-  durationSec  Int      @default(0)
-  ipAddress    String?
-  createdAt    DateTime @default(now())
+  id              String    @id @default(uuid())
+  userLogin       String
+  userName        String
+  entityType      String
+  entityId        String
+  entityTitle     String
+  openedAt        DateTime  @default(now())
+  closedAt        DateTime?
+  durationSec     Int       @default(0)
+  ipAddress       String?
+  actionCount     Int       @default(0)
+  actionTypes     String    @default("")
+  engagementLevel String    @default("SKIMMED")
+  createdAt       DateTime  @default(now())
 
   @@index([entityType, entityId])
   @@index([userLogin])
@@ -356,8 +328,8 @@ model AccessLog {
 
 model KaizenScoringCategory {
   id          String   @id @default(uuid())
-  name        String   // np. "Oszczędność czasu / Wydajność", "Ergonomia i 5S"
-  description String?  // Opis i kryteria przyznawania
+  name        String
+  description String?
   minPoints   Int      @default(10)
   maxPoints   Int      @default(100)
   icon        String   @default("⚡")
@@ -368,48 +340,43 @@ model KaizenScoringCategory {
 
 model KaizenGoal {
   id               String   @id @default(uuid())
-  title            String   // np. "Miesięczny Cel Zakładowy Kaizen"
+  title            String
   targetPoints     Int      @default(500)
-  period           String   @default("MONTHLY") // MONTHLY, ANNUAL
-  rewardInfo       String?  // Opis nagrody za osiągnięcie celu
-  isScoringEnabled Boolean  @default(false)     // Czy przydzielanie punktów Kaizen jest aktywne
+  period           String   @default("MONTHLY")
+  rewardInfo       String?
+  isScoringEnabled Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
 
 model BhpHazardReport {
-  id           String   @id @default(uuid())
-  title        String
-  description  String
-  category     String   @default("NEAR_MISS") // NEAR_MISS, UNSAFE_COND, UNSAFE_BEHAVIOR, FIRE_HAZARD, PPE
-  severity     String   @default("CRITICAL")  // CRITICAL, MODERATE, LOW
-  status       String   @default("OPEN")      // OPEN, IN_PROGRESS, RESOLVED, CLOSED
-  reportedBy   String   // Imię i nazwisko zgłaszającego
-  photoUrl     String?  // Zdjęcie zagrożenia BHP
-  fixPhotoUrl  String?  // Zdjęcie po wyeliminowaniu zagrożenia
-  fixedBy      String?  // Kto wyeliminował zagrożenie
-  fixedAt      DateTime?
-  actionTaken  String?  // Podjęte działania zapobiegawcze / korygujące
-  notifyEmails String?  // Lista e-maili (CSV)
-  dueDate      DateTime?
-
-  // --- POLA DO OCENY RYZYKA (Wypełnia osoba procesująca zgłoszenie) ---
-  hazardCategory  String?  // Kategoria zagrożenia (Mechaniczne, Chemiczne, Ergonomiczne, Toksyczne, Biologiczne, Termiczne, Inne)
-  probability     Int?     // Prawdopodobieństwo (1-5)
-  injurySeverity  Int?     // Ciężkość skutków (1-5)
-  riskScore       Int?     // Wynik ryzyka (probability × injurySeverity)
-  riskLevel       String?  // Poziom ryzyka (LOW, MEDIUM, HIGH)
-
-  areaId       String?
-  machineId    String?
-  area         Area?    @relation(fields: [areaId], references: [id], onDelete: SetNull)
-  machine      Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
-
-  assignedToId String?
-  assignedTo   User?    @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String    @id @default(uuid())
+  title          String
+  description    String
+  category       String    @default("NEAR_MISS")
+  severity       String    @default("CRITICAL")
+  status         String    @default("OPEN")
+  reportedBy     String
+  photoUrl       String?
+  fixPhotoUrl    String?
+  fixedBy        String?
+  fixedAt        DateTime?
+  actionTaken    String?
+  notifyEmails   String?
+  dueDate        DateTime?
+  hazardCategory String?
+  probability    Int?
+  injurySeverity Int?
+  riskScore      Int?
+  riskLevel      String?
+  areaId         String?
+  machineId      String?
+  assignedToId   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  assignedTo     User?     @relation(fields: [assignedToId], references: [id])
+  machine        Machine?  @relation(fields: [machineId], references: [id])
+  area           Area?     @relation(fields: [areaId], references: [id])
 
   @@index([status])
   @@index([areaId])
@@ -418,33 +385,30 @@ model BhpHazardReport {
 }
 
 model QualityReport {
-  id               String   @id @default(uuid())
+  id               String    @id @default(uuid())
   title            String
   description      String
-  category         String   @default("PRODUCT_DEFECT") // PRODUCT_DEFECT, RAW_MATERIAL, PROCESS_DEVIATION, PACKAGING, CUSTOMER_COMPLAINT
-  severity         String   @default("CRITICAL")       // CRITICAL, MODERATE, MINOR
-  status           String   @default("OPEN")           // OPEN, IN_PROGRESS, RESOLVED, CLOSED
-  reportedBy       String   // Zgłaszający (np. Kontroler Jakości / Operator)
-  batchNumber      String?  // Numer partii / zlecenia produkcyjnego
-  quantityAffected String?  // Ilość zakwestionowana (np. 150 kg, 20 szt)
-  photoUrl         String?  // Zdjęcie wady
-  fixPhotoUrl      String?  // Zdjęcie po korekcie CAPA
-  fixedBy          String?  // Kto rozliczył CAPA
+  category         String    @default("PRODUCT_DEFECT")
+  severity         String    @default("CRITICAL")
+  status           String    @default("OPEN")
+  reportedBy       String
+  batchNumber      String?
+  quantityAffected String?
+  photoUrl         String?
+  fixPhotoUrl      String?
+  fixedBy          String?
   fixedAt          DateTime?
-  actionTaken      String?  // Działania korygujące i zapobiegawcze (CAPA)
-  notifyEmails     String?  // Lista e-maili
-  dueDate          DateTime? // Termin wyznaczany przez osobę przypisaną
-
+  actionTaken      String?
+  notifyEmails     String?
+  dueDate          DateTime?
   areaId           String?
   machineId        String?
-  area             Area?    @relation(fields: [areaId], references: [id], onDelete: SetNull)
-  machine          Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
-
   assignedToId     String?
-  assignedTo       User?    @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
-
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  assignedTo       User?     @relation(fields: [assignedToId], references: [id])
+  machine          Machine?  @relation(fields: [machineId], references: [id])
+  area             Area?     @relation(fields: [areaId], references: [id])
 
   @@index([status])
   @@index([areaId])
@@ -465,13 +429,13 @@ model UserTrainingType {
 model UserTraining {
   id             String           @id @default(uuid())
   userId         String
-  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   trainingTypeId String
-  trainingType   UserTrainingType @relation(fields: [trainingTypeId], references: [id], onDelete: Cascade)
   dueDate        DateTime?
   notes          String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
+  trainingType   UserTrainingType @relation(fields: [trainingTypeId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, trainingTypeId])
   @@index([userId])
@@ -482,19 +446,19 @@ model BugReport {
   id             String             @id @default(uuid())
   title          String
   description    String
-  category       String             @default("BUG") // BUG, UI_ISSUE, SUGGESTION, QUESTION
+  category       String             @default("BUG")
   pageUrl        String?
   pageName       String?
-  status         String             @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
-  priority       String             @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  status         String             @default("OPEN")
+  priority       String             @default("MEDIUM")
   photoUrl       String?
-  createdById    String
-  createdBy      User               @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdById    String?
   unreadForUser  Boolean            @default(false)
   unreadForAdmin Boolean            @default(true)
-  messages       BugReportMessage[]
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
+  createdBy      User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  messages       BugReportMessage[]
 
   @@index([createdById])
   @@index([status])
@@ -504,13 +468,52 @@ model BugReport {
 model BugReportMessage {
   id            String    @id @default(uuid())
   bugReportId   String
-  bugReport     BugReport @relation(fields: [bugReportId], references: [id], onDelete: Cascade)
   senderId      String
-  sender        User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
   message       String
   attachmentUrl String?
   createdAt     DateTime  @default(now())
+  sender        User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  bugReport     BugReport @relation(fields: [bugReportId], references: [id], onDelete: Cascade)
 
   @@index([bugReportId])
   @@index([senderId])
+}
+
+model HelpDeskTicket {
+  id                  String         @id @default(uuid())
+  title               String
+  description         String
+  type                TicketType
+  status              TicketStatus   @default(OPEN)
+  priority            TicketPriority @default(MEDIUM)
+  createdById         String
+  isApprovedByManager Boolean?
+  approvedById        String?
+  managerComment      String?
+  approvalDate        DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  approvedBy          User?          @relation("ApprovedTickets", fields: [approvedById], references: [id])
+  createdBy           User           @relation("CreatedTickets", fields: [createdById], references: [id], onDelete: Cascade)
+}
+
+enum TicketType {
+  PROBLEM
+  PURCHASE
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
 }

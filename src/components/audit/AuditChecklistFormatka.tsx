@@ -152,6 +152,7 @@ export function AuditChecklistFormatka({ auditId, isReadOnly = false, onObservat
             ? {
                 ...item,
                 status: newStatus,
+                severity: newStatus === 'NOK' ? (chosenSev || null) : null,
                 ...(comment !== undefined ? { comment } : {}),
                 ...(photoUrl !== undefined ? { photoUrl } : {}),
               }
@@ -163,7 +164,7 @@ export function AuditChecklistFormatka({ auditId, isReadOnly = false, onObservat
         if (resData.isAuditCompletedDueToKO) {
           showToast('🔴 AUDYT ZAKOŃCZONY WYNIKIEM NEGATYWNYM! Naruszenie wymogu IFS KO (Knock-Out). Audyt został automatycznie zamknięty.', 'error');
         } else {
-          showToast(`Niezgodność [${chosenSev || 'Niezgodne'}] zarejestrowana i dodana do zadań!`, 'info');
+          showToast(`Niezgodność zarejestrowana.`, 'info');
         }
         if (onObservationAdded) onObservationAdded();
       } else {

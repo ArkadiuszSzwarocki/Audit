@@ -12,6 +12,9 @@ interface AccessLog {
   openedAt: string;
   closedAt: string | null;
   durationSec: number;
+  actionCount: number;
+  actionTypes: string; // JSON string
+  engagementLevel: 'SKIMMED' | 'REVIEWED' | 'ANALYZED';
   ipAddress: string | null;
 }
 
@@ -62,6 +65,30 @@ export function DocumentAccessHistoryModal({
     const s = sec % 60;
     if (m === 0) return `${s} sek`;
     return `${m} min ${s} sek`;
+  };
+
+  const getEngagementBadge = (level: string) => {
+    switch (level) {
+      case 'ANALYZED':
+        return { emoji: '🟢', label: 'Dogłębnie analizował', color: 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800' };
+      case 'REVIEWED':
+        return { emoji: '🟡', label: 'Zapoznał się', color: 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800' };
+      case 'SKIMMED':
+        return { emoji: '🔵', label: 'Przejrzał', color: 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800' };
+      default:
+        return { emoji: '⚪', label: 'Nieznany', color: 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700' };
+    }
+  };
+
+  const getActionLabel = (actionType: string) => {
+    const labels: { [key: string]: string } = {
+      'scroll': '📜 Scrollował',
+      'image_open': '🖼️ Otworzył zdjęcie',
+      'print': '🖨️ Drukował',
+      'tab_change': '📑 Zmienił tab',
+      'comment_view': '💬 Czytał komentarze',
+    };
+    return labels[actionType] || actionType;
   };
 
   const getEntityTypeName = (type: string) => {
@@ -126,32 +153,67 @@ export function DocumentAccessHistoryModal({
                     <th className="p-3">Osoba / Login</th>
                     <th className="p-3">Data i Czas Otwarcia</th>
                     <th className="p-3 text-center">Czas Wglądu</th>
-                    <th className="p-3 text-center">Status Podpisu</th>
+                    <th className="p-3 text-center">Zaangażowanie</th>
+                    <th className="p-3 text-center">Akcje (Liczba)</th>
+                    <th className="p-3 text-center">Typ Zapoznania</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
-                  {logs.map((log, idx) => (
-                    <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="p-3 text-slate-400 font-bold">{idx + 1}</td>
-                      <td className="p-3">
-                        <div className="font-bold text-slate-800 dark:text-slate-100">{log.userName}</div>
-                        <div className="text-[11px] font-mono text-slate-400">@{log.userLogin}</div>
-                      </td>
-                      <td className="p-3 text-slate-600 dark:text-slate-300">
-                        {new Date(log.openedAt).toLocaleString('pl-PL')}
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono font-bold text-[11px] rounded border border-slate-300 dark:border-slate-700">
-                          ⏱️ {formatDuration(log.durationSec)}
-                        </span>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-extrabold text-[11px] rounded-lg border border-emerald-300 dark:border-emerald-800 inline-flex items-center gap-1">
-                          ✒️ Podpis Cyfrowy @{log.userLogin}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {logs.map((log, idx) => {
+                    const engagement = getEngagementBadge(log.engagementLevel || 'SKIMMED');
+                    let actionTypes: string[] = [];
+                    try {
+                      const parsed = JSON.parse(log.actionTypes);
+                      actionTypes = Array.isArray(parsed) ? parsed : [];
+                    } catch (e) {
+                      actionTypes = [];
+                    }
+
+                    return (
+                      <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="p-3 text-slate-400 font-bold">{idx + 1}</td>
+                        <td className="p-3">
+                          <div className="font-bold text-slate-800 dark:text-slate-100">{log.userName}</div>
+                          <div className="text-[11px] font-mono text-slate-400">@{log.userLogin}</div>
+                        </td>
+                        <td className="p-3 text-slate-600 dark:text-slate-300 text-xs">
+                          {new Date(log.openedAt).toLocaleString('pl-PL')}
+                        </td>
+                        <td className="p-3 text-center">
+                          <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono font-bold text-[11px] rounded border border-slate-300 dark:border-slate-700">
+                            ⏱️ {formatDuration(log.durationSec)}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          <span className={`px-2 py-1 font-extrabold text-[11px] rounded-lg border inline-flex items-center gap-1 ${engagement.color}`}>
+                            {engagement.emoji} {engagement.label}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[11px] rounded border border-slate-300 dark:border-slate-700">
+                            {log.actionCount} akcji
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          {actionTypes.length > 0 ? (
+                            <div className="flex flex-wrap gap-1 justify-center">
+                              {actionTypes.map((action, aIdx) => (
+                                <span
+                                  key={aIdx}
+                                  className="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-950 text-brand-800 dark:text-brand-300 text-[10px] font-semibold rounded border border-brand-300 dark:border-brand-800"
+                                  title={getActionLabel(action)}
+                                >
+                                  {getActionLabel(action)}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic text-xs">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -103,6 +103,14 @@ export default function KaizenListPage() {
         <div className="flex flex-wrap items-center gap-3">
           {canManage && (
             <Link
+              href="/kaizen/raporty-komisji"
+              className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-2"
+            >
+              📊 Raporty Komisji
+            </Link>
+          )}
+          {canManage && (
+            <Link
               href="/kaizen/wyplaty"
               className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-2"
             >

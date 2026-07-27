@@ -100,15 +100,50 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSessionUser();
+    const userRoleUpper = String(user?.role || '').toUpperCase();
+    const isAllowed = userRoleUpper === 'ADMIN' || userRoleUpper === 'ADMINISTRATOR' || userRoleUpper === 'ZARZAD' || userRoleUpper === 'ZARZĄD' || userRoleUpper === 'KOMISJA KAIZEN' || userRoleUpper === 'KOMISJA_KAIZEN' || userRoleUpper === 'KAIZEN_COMMITTEE';
+
+    if (!user || !isAllowed) {
+      return NextResponse.json({ error: 'Brak uprawnień do usuwania wniosków o wypłatę' }, { status: 403 });
+    }
+
     const { id } = await params;
+
+    const payout = await prisma.kaizenPayoutRequest.findUnique({
+      where: { id },
+    });
+
+    if (!payout) {
+      return NextResponse.json({ error: 'Nie znaleziono wniosku o wypłatę' }, { status: 404 });
+    }
+
+    // If payout was APPROVED, revert the Kaizen items paid out state
+    if (payout.status === 'APPROVED') {
+      try {
+        const kaizenIds: string[] = JSON.parse(payout.kaizenIds || '[]');
+        if (kaizenIds.length > 0) {
+          await prisma.kaizen.updateMany({
+            where: { id: { in: kaizenIds } },
+            data: {
+              isPaidOut: false,
+              paidOutAt: null,
+              payoutDocNum: null,
+            },
+          });
+        }
+      } catch (err) {
+        console.error('Błąd wycofywania stanu rozliczenia Kaizen:', err);
+      }
+    }
 
     await prisma.kaizenPayoutRequest.delete({
       where: { id },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, message: `Wniosek o wypłatę ${payout.docNumber} został usunięty` });
   } catch (error: any) {
     console.error('DELETE /api/kaizen-payouts/[id] Error:', error);
-    return NextResponse.json({ error: 'Błąd usuwania wniosku o wypłatę' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Błąd usuwania wniosku o wypłatę' }, { status: 500 });
   }
 }

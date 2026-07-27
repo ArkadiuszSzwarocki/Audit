@@ -229,6 +229,8 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
   };
 
   const handlePrint = () => {
+    // Emit tracking event for print action
+    window.dispatchEvent(new CustomEvent('kaizen:print'));
     window.print();
   };
 
@@ -347,7 +349,11 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
                       <div 
                         key={`${url}-${idx}`}
                         className="relative aspect-square w-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 cursor-pointer group bg-slate-900"
-                        onClick={() => setSelectedImage(url)}
+                        onClick={() => {
+                          setSelectedImage(url);
+                          // Emit tracking event for image open
+                          window.dispatchEvent(new CustomEvent('kaizen:image_open'));
+                        }}
                       >
                         <img src={url} alt={`Załącznik ${idx + 1}`} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">

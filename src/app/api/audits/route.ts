@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       title: validatedData.title,
       areaId: validatedData.areaId,
       machineId: validatedData.machineId || undefined,
-      auditTypeId: validatedData.auditTypeId
+      auditTypeId: validatedData.auditTypeId || undefined
     });
     return ApiResponse.success(audit, 201);
   } catch (error: any) {

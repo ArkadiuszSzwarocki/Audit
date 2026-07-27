@@ -41,7 +41,8 @@ export default function NewAuditPage() {
     e.preventDefault();
     if (!selectedArea) return;
     try {
-      const audit = await createAudit(selectedArea, selectedMachine || undefined, selectedAuditType || undefined);
+      const title = `Audyt ${selectedAuditType ? `${auditTypes.find(t => t.id === selectedAuditType)?.name || ''} ` : ''}z dnia ${new Date().toLocaleDateString('pl-PL')} godz. ${new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`;
+      const audit = await createAudit(selectedArea, selectedMachine || undefined, selectedAuditType || undefined, title);
       showToast('Audyt został pomyślnie rozpoczęty!', 'success');
       router.push(`/audyty/${audit.id}`);
     } catch (err: any) {

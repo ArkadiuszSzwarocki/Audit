@@ -25,7 +25,7 @@ interface PayoutRequest {
 }
 
 export default function KaizenWyplatyPage() {
-  const { showToast } = useToast();
+  const { showToast, showConfirm } = useToast();
   const { user, isAdmin, isKaizenCommittee, loading: authLoading } = useAuth();
 
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
@@ -100,6 +100,36 @@ export default function KaizenWyplatyPage() {
     } finally {
       setProcessingId(null);
     }
+  };
+
+  const handleDeletePayout = (id: string, docNumber: string) => {
+    showConfirm({
+      title: 'Usuwanie Wniosku o Wypłatę',
+      message: `Czy na pewno chcesz USUNĄĆ wniosek o wypłatę numer ${docNumber}?\n\nAkcja jest nieodwracalna!`,
+      confirmText: 'Usuń wniosek',
+      isDanger: true,
+      onConfirm: async () => {
+        setProcessingId(id);
+        try {
+          const res = await fetch(`/api/kaizen-payouts/${id}`, {
+            method: 'DELETE',
+          });
+
+          if (res.ok) {
+            showToast(`Wniosek ${docNumber} został usunięty z systemu.`, 'success');
+            fetchPayouts();
+          } else {
+            const errData = await res.json();
+            showToast(errData.error || 'Błąd usuwania wniosku', 'error');
+          }
+        } catch (err) {
+          console.error('Błąd usuwania wniosku:', err);
+          showToast('Błąd połączenia z serwerem', 'error');
+        } finally {
+          setProcessingId(null);
+        }
+      },
+    });
   };
 
   const handlePrintPreview = (p: PayoutRequest) => {
@@ -401,6 +431,16 @@ export default function KaizenWyplatyPage() {
                       <span>↩️</span> Cofnij zatwierdzenie wypłaty
                     </button>
                   )}
+
+                  <button
+                    type="button"
+                    disabled={processingId === item.id}
+                    onClick={() => handleDeletePayout(item.id, item.docNumber)}
+                    className="px-3.5 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 rounded-xl font-extrabold text-xs transition-colors cursor-pointer border border-red-300/30 dark:border-red-800/30"
+                    title="Usuń wniosek o wypłatę ze względu na błędy lub zmiany"
+                  >
+                    🗑️ Usuń
+                  </button>
                 </div>
               </div>
             );

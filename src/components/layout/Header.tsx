@@ -10,6 +10,7 @@ import { useDesktopNotifications } from '@/hooks/useDesktopNotifications';
 import { KaizenRanksModal } from '@/components/ui/KaizenRanksModal';
 import { KaizenRewardPayoutModal } from '@/components/ui/KaizenRewardPayoutModal';
 import { BugReportModal } from '@/components/ui/BugReportModal';
+import { MainNav } from './MainNav';
 
 interface HeaderProps {
   onOpenMobileMenu: () => void;
@@ -117,6 +118,10 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
             <span className="hidden lg:inline-block text-xs font-bold uppercase tracking-wider text-slate-400">
               Panel Audytowy
             </span>
+          </div>
+
+          <div className="hidden md:block">
+            <MainNav />
           </div>
 
           {/* Action / User section */}
