@@ -4,20 +4,30 @@ import { Observation } from './useAudits';
 export function useObservations() {
   const [pendingObservations, setPendingObservations] = useState<Observation[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchPendingObservations = useCallback(async (showLoading?: boolean) => {
     const isFirstLoad = showLoading !== undefined ? showLoading : false;
     if (isFirstLoad) setLoading(true);
     try {
+      setError(null);
       const res = await fetch('/api/observations?status=pending');
+      
+      if (!res.ok) {
+        throw new Error(`API Error: ${res.status} ${res.statusText}`);
+      }
+      
       const data = await res.json();
-      if (res.ok && Array.isArray(data)) {
+      if (Array.isArray(data)) {
         setPendingObservations(data);
       } else {
         setPendingObservations([]);
+        throw new Error('Unexpected API response format');
       }
-    } catch (error) {
-      console.error('Błąd pobierania zadań:', error);
+    } catch (err: any) {
+      const errorMsg = err.message || 'Błąd pobierania spostrzeżeń';
+      console.error('Błąd pobierania spostrzeżeń:', err);
+      setError(errorMsg);
       setPendingObservations([]);
     } finally {
       if (isFirstLoad) setLoading(false);
@@ -72,6 +82,7 @@ export function useObservations() {
   return {
     pendingObservations,
     loading,
+    error,
     fetchPendingObservations,
     fixObservation,
     deleteObservation,

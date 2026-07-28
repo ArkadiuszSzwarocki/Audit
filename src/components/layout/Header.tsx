@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { ThemeSelector } from '@/components/ui/ThemeSelector';
 import { ChangePasswordModal } from '@/components/ui/ChangePasswordModal';
@@ -10,7 +11,6 @@ import { useDesktopNotifications } from '@/hooks/useDesktopNotifications';
 import { KaizenRanksModal } from '@/components/ui/KaizenRanksModal';
 import { KaizenRewardPayoutModal } from '@/components/ui/KaizenRewardPayoutModal';
 import { BugReportModal } from '@/components/ui/BugReportModal';
-import { MainNav } from './MainNav';
 
 interface HeaderProps {
   onOpenMobileMenu: () => void;
@@ -24,11 +24,14 @@ interface UserProfileStats {
   userPoints: number;
   estimatedCashReward: number;
   rankTitle: string;
-  isScoringEnabled?: boolean;
 }
 
 export default function Header({ onOpenMobileMenu }: HeaderProps) {
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, logout, loading } = useAuth();
+  const pathname = usePathname();
+  const isHelpDeskPage = pathname === '/helpdesk' || pathname.startsWith('/helpdesk/');
+  const userRole = String(user?.role || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+  const isRestrictedHelpDeskUser = isHelpDeskPage && !loading && !!user && ['HELPDESK', 'ITHELPDESK', 'IT'].includes(userRole);
   const { permission, requestPermission } = useDesktopNotifications();
   const [mounted, setMounted] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -90,7 +93,6 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
           userPoints: data.userPoints || 0,
           estimatedCashReward: data.estimatedCashReward || 0,
           rankTitle: data.rankTitle || '🌱 Początkujący Innowator',
-          isScoringEnabled: Boolean(data.isScoringEnabled),
         });
       }
     } catch {
@@ -103,32 +105,33 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
       <header className={`sticky top-0 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 print:hidden shadow-sm px-4 sm:px-6 lg:px-8 transition-all ${isUserMenuOpen ? 'z-50' : 'z-20'}`}>
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-3">
-            {/* Mobile hamburger button */}
-            <button 
-              onClick={onOpenMobileMenu}
-              className="lg:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all focus:outline-none flex items-center gap-2 group cursor-pointer"
-              title="Otwórz menu"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Menu</span>
-            </button>
+            {/* Mobile hamburger button - hidden only for restricted Help Desk users */}
+            {!isRestrictedHelpDeskUser && (
+              <button 
+                onClick={onOpenMobileMenu}
+                className="lg:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all focus:outline-none flex items-center gap-2 group cursor-pointer"
+                title="Otwórz menu"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Menu</span>
+              </button>
+            )}
 
-            <span className="hidden lg:inline-block text-xs font-bold uppercase tracking-wider text-slate-400">
-              Panel Audytowy
-            </span>
-          </div>
+            {!isRestrictedHelpDeskUser && (
+              <span className="hidden lg:inline-block text-xs font-bold uppercase tracking-wider text-slate-400">
+                Panel Audytowy
+              </span>
+            )}
 
-          <div className="hidden md:block">
-            <MainNav />
           </div>
 
           {/* Action / User section */}
           <div className="flex items-center gap-2 sm:gap-3">
 
-            {/* Robaczek - Zgłoś Problem Button */}
-            {user && (
+            {/* Robaczek - Zgłoś Problem Button - hidden only for restricted Help Desk users */}
+            {user && !isRestrictedHelpDeskUser && (
               <button
                 type="button"
                 onClick={() => setIsBugReportModalOpen(true)}
@@ -145,19 +148,32 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
               </button>
             )}
 
-            {/* Interactive Logged-in User Profile Dropdown Pill */}
+            {/* User Profile or Logout Button */}
             {user ? (
-              <div className="relative">
+              isRestrictedHelpDeskUser ? (
+                // Help Desk: Only logout button
                 <button
                   type="button"
-                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all shadow-xs cursor-pointer ${
-                    isUserMenuOpen
-                      ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-500 text-brand-700 dark:text-brand-300 ring-2 ring-brand-500/20'
-                      : 'bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border-slate-200/60 dark:border-slate-700/60'
-                  }`}
-                  title="Kliknij, aby otworzyć panel profilu, statystyk i ustawień"
+                  onClick={() => logout()}
+                  className="px-4 py-1.5 rounded-xl border bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800/60 font-extrabold text-xs transition-all shadow-xs cursor-pointer flex items-center gap-2"
+                  title="Wyloguj się"
                 >
+                  <span>🚪</span>
+                  Wyloguj
+                </button>
+              ) : (
+                // Regular users: Profile dropdown
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all shadow-xs cursor-pointer ${
+                      isUserMenuOpen
+                        ? 'bg-brand-50 dark:bg-brand-950/40 border-brand-500 text-brand-700 dark:text-brand-300 ring-2 ring-brand-500/20'
+                        : 'bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border-slate-200/60 dark:border-slate-700/60'
+                    }`}
+                    title="Kliknij, aby otworzyć panel profilu, statystyk i ustawień"
+                  >
                   <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-brand-600 to-brand-400 text-white font-black text-xs flex items-center justify-center shadow-xs">
                     {user.name.charAt(0).toUpperCase()}
                   </div>
@@ -225,20 +241,18 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
                           <span className="px-2.5 py-0.5 bg-brand-100 text-brand-800 dark:bg-brand-950 dark:text-brand-300 font-extrabold text-[10px] rounded-md uppercase tracking-wider">
                             Rola: {user.role}
                           </span>
-                          {stats.isScoringEnabled && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsUserMenuOpen(false);
-                                setIsRanksModalOpen(true);
-                              }}
-                              className="px-2.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 dark:bg-amber-950 dark:text-amber-300 font-extrabold text-[10px] rounded-md transition-colors cursor-pointer flex items-center gap-1"
-                              title="Kliknij, aby zobaczyć zasady zdobywania punktów i wyższych rang"
-                            >
-                              <span>{stats.rankTitle}</span>
-                              <span className="text-[10px] text-amber-700 dark:text-amber-400 font-black">ℹ️</span>
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              setIsRanksModalOpen(true);
+                            }}
+                            className="px-2.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 dark:bg-amber-950 dark:text-amber-300 font-extrabold text-[10px] rounded-md transition-colors cursor-pointer flex items-center gap-1"
+                            title="Kliknij, aby zobaczyć zasady zdobywania punktów i wyższych rang"
+                          >
+                            <span>{stats.rankTitle}</span>
+                            <span className="text-[10px] text-amber-700 dark:text-amber-400 font-black">ℹ️</span>
+                          </button>
                         </div>
                       </div>
 
@@ -387,7 +401,8 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
                   </>,
                   document.body
                 )}
-              </div>
+                </div>
+              )
             ) : (
               <div className="flex items-center gap-2">
                 <ThemeSelector compact />
@@ -425,7 +440,6 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
           user={user}
           userPoints={stats.userPoints}
           submittedKaizensCount={stats.submittedKaizensCount}
-          isScoringEnabled={stats.isScoringEnabled}
           initialTab={payoutTab}
         />
       )}

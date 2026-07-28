@@ -1,5 +1,3 @@
-import { useToast } from '@/context/ToastContext';
-import { useDesktopNotifications } from '@/hooks/useDesktopNotifications';
 import Link from 'next/link';
 
 const navItems = [
@@ -16,17 +14,6 @@ const navItems = [
 ];
 
 export function MainNav() {
-  const { showToast } = useToast();
-  const { requestPermission } = useDesktopNotifications();
-
-  const handleNotificationClick = () => {
-    showToast('Notification clicked', 'info');
-  };
-
-  const handleNotificationClickHandler = () => {
-    requestPermission();
-  };
-
   return (
     <nav className="flex flex-wrap items-center justify-between p-4">
       <div className="flex flex-wrap items-center gap-4">
@@ -35,20 +22,6 @@ export function MainNav() {
             {item.label}
           </Link>
         ))}
-      </div>
-      <div className="flex flex-wrap items-center gap-4">
-        <button
-          onClick={handleNotificationClick}
-          className="flex items-center gap-2 rounded-full bg-blue-500 px-3 py-1 text-white"
-        >
-          <span>Notifications</span>
-        </button>
-        <button
-          onClick={handleNotificationClickHandler}
-          className="flex items-center gap-2 rounded-full bg-green-500 px-3 py-1 text-white"
-        >
-          <span>Enable Notifications</span>
-        </button>
       </div>
     </nav>
   );

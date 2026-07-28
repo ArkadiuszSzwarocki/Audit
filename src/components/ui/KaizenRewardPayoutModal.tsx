@@ -14,7 +14,6 @@ interface KaizenRewardPayoutModalProps {
   };
   userPoints?: number;
   submittedKaizensCount?: number;
-  isScoringEnabled?: boolean;
   initialTab?: 'NEW_PAYOUT' | 'HISTORY';
 }
 
@@ -54,7 +53,6 @@ interface KaizenRewardPayoutModalProps {
   };
   userPoints?: number;
   submittedKaizensCount?: number;
-  isScoringEnabled?: boolean;
   initialTab?: 'NEW_PAYOUT' | 'HISTORY';
 }
 
@@ -64,7 +62,6 @@ export function KaizenRewardPayoutModal({
   user,
   userPoints = 0,
   submittedKaizensCount = 0,
-  isScoringEnabled = false,
   initialTab = 'NEW_PAYOUT',
 }: KaizenRewardPayoutModalProps) {
   const { showToast } = useToast();

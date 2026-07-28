@@ -36,26 +36,10 @@ export default function KaizenListPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedKaizen, setSelectedKaizen] = useState<Kaizen | null>(null);
   const [historyTarget, setHistoryTarget] = useState<{ id: string; title: string } | null>(null);
-  const [isScoringEnabled, setIsScoringEnabled] = useState(false);
 
   useEffect(() => {
     fetchKaizens(true);
-    fetchScoringStatus();
   }, [fetchKaizens]);
-
-  const fetchScoringStatus = async () => {
-    try {
-      const res = await fetch('/api/kaizen-scoring');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.goal?.isScoringEnabled !== undefined) {
-          setIsScoringEnabled(data.goal.isScoringEnabled);
-        }
-      }
-    } catch {
-      // Ignore error
-    }
-  };
 
   const handleDelete = (id: string) => {
     showConfirm({
@@ -246,7 +230,7 @@ export default function KaizenListPage() {
                             {st.label}
                           </span>
                         </div>
-                        {k.status === 'APPROVED' && Boolean(isScoringEnabled) && Boolean(k.pointsAwarded) && (
+                        {k.status === 'APPROVED' && Boolean(k.pointsAwarded) && (
                           <div>
                             <span className="px-2 py-0.5 bg-amber-500 text-white font-black text-[10px] rounded-md">
                               ⭐ +{k.pointsAwarded} pkt
@@ -308,7 +292,6 @@ export default function KaizenListPage() {
           user={user}
           userPoints={totalPointsAwarded}
           submittedKaizensCount={kaizens.length}
-          isScoringEnabled={isScoringEnabled}
         />
       )}
     </div>

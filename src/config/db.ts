@@ -3,7 +3,7 @@ import { PrismaLibSql } from '@prisma/adapter-libsql';
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-const adapter = new PrismaLibSql({ url: 'file:./dev.db' });
+const adapter = new PrismaLibSql({ url: 'file:./prisma/dev.db' });
 
 export function getPrismaClient(): PrismaClient {
   if (

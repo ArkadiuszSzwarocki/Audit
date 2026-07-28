@@ -86,7 +86,22 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isAuthenticated && pathname === '/logowanie') {
+    // Redirect IT Help Desk users to /helpdesk instead of home
+    const roleStr = String(sessionPayload?.role || '').toUpperCase();
+    if (roleStr === 'IT') {
+      return NextResponse.redirect(new URL('/helpdesk', request.url));
+    }
     return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  // Redirect IT Help Desk users to /helpdesk (if not already there)
+  if (isAuthenticated && sessionPayload) {
+    const roleStr = String(sessionPayload.role || '').toUpperCase();
+    if (roleStr === 'IT') {
+      if (pathname !== '/helpdesk' && !pathname.startsWith('/helpdesk/')) {
+        return NextResponse.redirect(new URL('/helpdesk', request.url));
+      }
+    }
   }
 
   return NextResponse.next();

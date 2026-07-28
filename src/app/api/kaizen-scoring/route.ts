@@ -111,28 +111,6 @@ export async function POST(request: Request) {
       }
     }
 
-    if (action === 'toggle_scoring') {
-      const existingGoal = await prisma.kaizenGoal.findFirst();
-      const nextState = Boolean(body.isScoringEnabled);
-      if (existingGoal) {
-        const updatedGoal = await prisma.kaizenGoal.update({
-          where: { id: existingGoal.id },
-          data: { isScoringEnabled: nextState },
-        });
-        return NextResponse.json({ goal: updatedGoal });
-      } else {
-        const createdGoal = await prisma.kaizenGoal.create({
-          data: {
-            title: 'Miesięczny Cel Kaizen Zespołu',
-            targetPoints: 500,
-            period: 'MONTHLY',
-            isScoringEnabled: nextState,
-          },
-        });
-        return NextResponse.json({ goal: createdGoal });
-      }
-    }
-
     if (action === 'save_goal') {
       const existingGoal = await prisma.kaizenGoal.findFirst();
       if (existingGoal) {
@@ -143,7 +121,7 @@ export async function POST(request: Request) {
             targetPoints: Number(goal.targetPoints) || 500,
             period: goal.period || 'MONTHLY',
             rewardInfo: goal.rewardInfo,
-            isScoringEnabled: typeof goal.isScoringEnabled === 'boolean' ? goal.isScoringEnabled : existingGoal.isScoringEnabled,
+            isScoringEnabled: true,
           },
         });
         return NextResponse.json({ goal: updatedGoal });
@@ -154,7 +132,7 @@ export async function POST(request: Request) {
             targetPoints: Number(goal.targetPoints) || 500,
             period: goal.period || 'MONTHLY',
             rewardInfo: goal.rewardInfo,
-            isScoringEnabled: Boolean(goal.isScoringEnabled),
+            isScoringEnabled: true,
           },
         });
         return NextResponse.json({ goal: createdGoal });

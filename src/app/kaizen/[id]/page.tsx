@@ -43,7 +43,6 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
   const [pointsAwarded, setPointsAwarded] = useState<number>(0);
   const [pointsCategory, setPointsCategory] = useState<string>('');
   const [scoringCategories, setScoringCategories] = useState<ScoringCategory[]>(DEFAULT_CATEGORIES);
-  const [isScoringEnabled, setIsScoringEnabled] = useState<boolean>(false);
   
   // 4 Criteria Scores (Załącznik nr 2)
   const [c1, setC1] = useState<number>(0);
@@ -110,7 +109,6 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
         if (Array.isArray(data.categories) && data.categories.length > 0) {
           setScoringCategories(data.categories);
         }
-        setIsScoringEnabled(Boolean(data.goal?.isScoringEnabled));
       }
     } catch (err) {
       console.error('Błąd pobierania kategorii punktacji:', err);
@@ -705,7 +703,7 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
                   </span>
                 </div>
 
-                {kaizen.status === 'APPROVED' && isScoringEnabled && Boolean(kaizen.pointsAwarded) && (
+                {kaizen.status === 'APPROVED' && Boolean(kaizen.pointsAwarded) && (
                   <div>
                     <p className="text-sm text-slate-500 font-medium mb-1">Przyznane punkty</p>
                     <span className="inline-block px-3 py-1 bg-amber-500 text-white font-black text-sm rounded-lg shadow-xs">
@@ -832,7 +830,7 @@ export default function KaizenReviewPage({ params }: { params: Promise<{ id: str
                   {kaizen.status === 'REJECTED' && '[✗] ODRZUCONE'}
                   {kaizen.status === 'HOLD' && '[!] WSTRZYMANE'}
                 </span>
-                {kaizen.status === 'APPROVED' && isScoringEnabled && Boolean(kaizen.pointsAwarded) && (
+                {kaizen.status === 'APPROVED' && Boolean(kaizen.pointsAwarded) && (
                   <span className="border-l border-black pl-2 font-black text-black">
                     ⭐ {kaizen.pointsAwarded} PKT
                   </span>

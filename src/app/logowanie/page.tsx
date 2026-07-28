@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -12,15 +12,21 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
 
+  useEffect(() => {
+    setLoginStr('');
+    setPassword('');
+    setError('');
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
     try {
-      await login(loginStr, password);
-      router.push('/');
-      router.refresh();
+      const loggedUser = await login(loginStr, password);
+      const targetPath = String(loggedUser?.role || '').toUpperCase() === 'IT' ? '/helpdesk' : '/';
+      router.replace(targetPath);
     } catch (err: any) {
       setError(err.message);
     } finally {

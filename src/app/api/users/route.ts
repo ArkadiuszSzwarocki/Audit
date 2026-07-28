@@ -4,40 +4,48 @@ import bcrypt from 'bcryptjs';
 import { getAuthSession } from '@/lib/auth';
 
 export async function GET() {
-  const session = await getAuthSession();
-  if (!session) {
-    return NextResponse.json({ error: 'Brak autoryzacji' }, { status: 401 });
-  }
+  try {
+    const session = await getAuthSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Brak autoryzacji' }, { status: 401 });
+    }
 
-  const users = await prisma.user.findMany({
-    where: {
-      NOT: {
-        login: { in: ['MasterAdmin', 'masteradmin'] }
-      }
-    },
-    select: {
-      id: true,
-      login: true,
-      name: true,
-      email: true,
-      role: true,
-      bhpTrainingDueDate: true,
-      dismissedBhpNoticeThreshold: true,
-      responsibleAreaId: true,
-      responsibleArea: {
-        select: { id: true, name: true }
+    const users = await prisma.user.findMany({
+      where: {
+        NOT: {
+          login: { in: ['MasterAdmin', 'masteradmin'] }
+        }
       },
-      notifyBhp: true,
-      notifyQuality: true,
-      notifyFaults: true,
-      notifyKaizen: true,
-      notifyAudits: true,
-      isKaizenCommittee: true,
-      createdAt: true
-    },
-    orderBy: { name: 'asc' }
-  });
-  return NextResponse.json(users);
+      select: {
+        id: true,
+        login: true,
+        name: true,
+        email: true,
+        role: true,
+        bhpTrainingDueDate: true,
+        dismissedBhpNoticeThreshold: true,
+        responsibleAreaId: true,
+        responsibleArea: {
+          select: { id: true, name: true }
+        },
+        notifyBhp: true,
+        notifyQuality: true,
+        notifyFaults: true,
+        notifyKaizen: true,
+        notifyAudits: true,
+        isKaizenCommittee: true,
+        createdAt: true
+      },
+      orderBy: { name: 'asc' }
+    });
+    return NextResponse.json(users);
+  } catch (error: any) {
+    console.error('Error fetching users:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch users', details: error.message },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: Request) {
@@ -73,9 +81,17 @@ export async function POST(request: Request) {
     }
 
     const requestedRoleUpper = String(role || '').toUpperCase();
-    if ((requestedRoleUpper === 'ZARZAD' || requestedRoleUpper === 'ZARZĄD') && !session.isZarzad) {
+    const currentDbUser = await prisma.user.findUnique({
+      where: { id: session.id },
+      select: { role: true }
+    });
+    const currentDbRoleUpper = String(currentDbUser?.role || '').toUpperCase();
+    const isMasterAdmin = currentDbRoleUpper === 'ADMIN' && String(session.name || session.login || '').toUpperCase().includes('MASTERADMIN');
+    const isAllowedToCreateBoardUser = session.isZarzad || isMasterAdmin || currentDbRoleUpper === 'ZARZAD' || currentDbRoleUpper === 'ZARZĄD';
+
+    if ((requestedRoleUpper === 'ZARZAD' || requestedRoleUpper === 'ZARZĄD') && !isAllowedToCreateBoardUser) {
       return NextResponse.json({
-        error: 'Tylko obecny członek Zarządu może tworzyć nowe konta z rolą Zarząd!'
+        error: 'Tylko obecny członek Zarządu lub Master Admin może tworzyć nowe konta z rolą Zarząd!'
       }, { status: 403 });
     }
 

@@ -5,15 +5,12 @@ import { ApiResponse } from '@/utils/apiResponse';
 
 export async function GET() {
   try {
-    const kaizens = await prisma.kaizen.findMany({
-      include: {
-        area: true,
-        machine: true
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+    console.log('Fetching Kaizen...');
+    const kaizens = await prisma.kaizen.findMany();
+    console.log('Kaizens found:', kaizens.length, kaizens);
     return NextResponse.json(kaizens);
   } catch (error) {
+    console.error('Error fetching Kaizen:', error);
     return ApiResponse.handleApiError(error, 'Nie udało się pobrać pomysłów Kaizen');
   }
 }

@@ -221,12 +221,15 @@ model User {
   assignedFaultReports        FaultReport[]
   approvedTickets             HelpDeskTicket[]   @relation("ApprovedTickets")
   createdTickets              HelpDeskTicket[]   @relation("CreatedTickets")
+  assignedTickets             HelpDeskTicket[]   @relation("AssignedTickets")
+  assignedByTickets           HelpDeskTicket[]   @relation("AssignedByTickets")
   assignedKaizens             Kaizen[]           @relation("KaizenAssignedTo")
   assignedTasks               Observation[]
   assignedQualityReports      QualityReport[]
   responsibleArea             Area?              @relation("UserResponsibleArea", fields: [responsibleAreaId], references: [id])
   userRole                    Role?              @relation(fields: [roleId], references: [id])
   trainings                   UserTraining[]
+  ticketHistoryChanges        HelpDeskTicketHistory[] @relation("TicketHistoryChanges")
 
   @@index([role])
   @@index([responsibleAreaId])
@@ -491,10 +494,38 @@ model HelpDeskTicket {
   approvedById        String?
   managerComment      String?
   approvalDate        DateTime?
+  estimatedDueDate    DateTime?
+  resolutionNotes     String?
+  closedAt            DateTime?
+  // Assignment tracking
+  assignedToId        String?
+  assignedById        String?
+  assignedAt          DateTime?
+  // Help Desk read status
+  readByHelpDesk      Boolean        @default(false)
+  readByHelpDeskAt    DateTime?
+  // Realization tracking
+  realizationStartedAt DateTime?
+  realizedAt          DateTime?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
   approvedBy          User?          @relation("ApprovedTickets", fields: [approvedById], references: [id])
   createdBy           User           @relation("CreatedTickets", fields: [createdById], references: [id], onDelete: Cascade)
+  assignedTo          User?          @relation("AssignedTickets", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedBy          User?          @relation("AssignedByTickets", fields: [assignedById], references: [id], onDelete: SetNull)
+  history             HelpDeskTicketHistory[] @relation("TicketHistory")
+}
+
+model HelpDeskTicketHistory {
+  id        String   @id @default(uuid())
+  ticketId  String
+  ticket    HelpDeskTicket @relation("TicketHistory", fields: [ticketId], references: [id], onDelete: Cascade)
+  changedBy String
+  user      User     @relation("TicketHistoryChanges", fields: [changedBy], references: [id])
+  field     String
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
 }
 
 enum TicketType {
@@ -516,4 +547,17 @@ enum TicketPriority {
   MEDIUM
   HIGH
   CRITICAL
+}
+
+model HelpDeskConfig {
+  id                    String  @id @default("singleton")
+  helpDeskEmail         String  @default("")
+  replyToEmail          String  @default("")
+  notifyOnNewTicket     Boolean @default(true)
+  notifyOnStatusChange  Boolean @default(true)
+  notifyOnAssignment    Boolean @default(true)
+  isEmailEnabled        Boolean @default(false)
+  updatedAt             DateTime @updatedAt
+
+  @@map("helpdesk_config")
 }

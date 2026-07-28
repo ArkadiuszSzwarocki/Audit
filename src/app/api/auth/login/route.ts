@@ -110,7 +110,15 @@ export async function POST(request: Request) {
         cookieStore.delete('admin_session');
       }
 
-      return NextResponse.json({ success: true, user: { name: user.name, role: user.role } });
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: user.id,
+          login: user.login,
+          name: user.name,
+          role: user.role,
+        }
+      });
     }
 
     return NextResponse.json({ error: 'Nieprawidłowe hasło' }, { status: 401 });

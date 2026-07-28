@@ -109,10 +109,6 @@ export async function GET() {
     const paidOutKaizens = approvedKaizens.filter(k => k.isPaidOut);
     const paidOutCashReward = paidOutKaizens.reduce((sum, k) => sum + getKaizenRewardAmount(k.pointsAwarded || 0), 0);
 
-    // 4. Check if Kaizen Scoring is enabled globally
-    const kaizenGoal = await prisma.kaizenGoal.findFirst();
-    const isScoringEnabled = kaizenGoal?.isScoringEnabled ?? false;
-
     // Determine rank title
     let rankTitle = '🌱 Początkujący Innowator';
     if (userPoints >= 300) {
@@ -155,7 +151,6 @@ export async function GET() {
       estimatedCashReward,
       paidOutCashReward,
       rankTitle,
-      isScoringEnabled,
       bhpTrainingDueDate: dbUser?.bhpTrainingDueDate || null,
       dismissedBhpNoticeThreshold: dbUser?.dismissedBhpNoticeThreshold ?? null,
       trainings: dbUser?.trainings || [],
