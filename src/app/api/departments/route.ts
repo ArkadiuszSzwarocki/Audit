@@ -2,6 +2,15 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/config/db';
 import { getAuthSession } from '@/lib/auth';
 
+/** Roles dozwolone do zarządzania departamentami. */
+const ALLOWED_MANAGEMENT_ROLES = new Set([
+  'ADMIN', 'ADMINISTRATOR', 'ZARZAD', 'ZARZĄD', 'BOARD',
+]);
+
+function hasManagementAccess(role: string): boolean {
+  return ALLOWED_MANAGEMENT_ROLES.has(role.toUpperCase());
+}
+
 export async function GET(request: Request) {
   try {
     const areas = await prisma.area.findMany({
@@ -41,6 +50,13 @@ export async function POST(request: Request) {
     const session = await getAuthSession();
     if (!session) {
       return NextResponse.json({ error: 'Brak autoryzacji' }, { status: 401 });
+    }
+
+    if (!hasManagementAccess(session.role)) {
+      return NextResponse.json(
+        { error: 'Brak uprawnień. Tylko Administrator i Zarząd mogą zarządzać departamentami.' },
+        { status: 403 }
+      );
     }
 
     const body = await request.json().catch(() => ({}));

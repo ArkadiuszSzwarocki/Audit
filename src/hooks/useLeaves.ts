@@ -32,6 +32,11 @@ export interface LeaveBalance {
   year: number;
   totalDays: number;
   usedDays: number;
+  availableDays: number;
+  overdueDays?: number;
+  usedOverdueDays?: number;
+  remainingOverdue?: number;
+  remainingCurrent?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -78,10 +83,18 @@ export function useLeaves() {
         throw new Error('Nie udało się pobrać pul urlopowych');
       }
 
-      const data = await response.json();
-      const currentYear = new Date().getFullYear();
-      const balance = data.find((b: LeaveBalance) => b.year === currentYear);
-      setLeaveBalance(balance || null);
+      const resData = await response.json();
+      const payload = resData.data || resData;
+
+      if (Array.isArray(payload)) {
+        const currentYear = new Date().getFullYear();
+        const balance = payload.find((b: LeaveBalance) => b.year === currentYear);
+        setLeaveBalance(balance || null);
+      } else if (payload && typeof payload === 'object') {
+        setLeaveBalance(payload as LeaveBalance);
+      } else {
+        setLeaveBalance(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Nieznany błąd');
     } finally {
@@ -177,6 +190,37 @@ export function useLeaves() {
     [fetchLeaveRequests]
   );
 
+  // Usuwa wniosek urlopowy (dla Admina) i zwraca dni do puli jeśli był APPROVED
+  const deleteLeaveRequest = useCallback(
+    async (id: string) => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`/api/urlopy/${id}`, {
+          method: 'DELETE',
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Błąd podczas usuwania wniosku');
+        }
+
+        const data = await response.json();
+        await fetchLeaveRequests();
+        await fetchLeaveBalance();
+        return data;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Nieznany błąd';
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fetchLeaveRequests, fetchLeaveBalance]
+  );
+
   return {
     leaveRequests,
     leaveBalance,
@@ -185,6 +229,7 @@ export function useLeaves() {
     fetchLeaveRequests,
     fetchLeaveBalance,
     createLeaveRequest,
-    updateLeaveRequestStatus
+    updateLeaveRequestStatus,
+    deleteLeaveRequest,
   };
 }

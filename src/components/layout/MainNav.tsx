@@ -9,6 +9,7 @@ const navItems = [
   { href: '/bhp', label: 'BHP' },
   { href: '/helpdesk', label: 'Help Desk' },
   { href: '/struktura', label: 'Struktura' },
+  { href: '/kody-qr', label: 'Kody QR' },
   { href: '/dokumentacja', label: 'Dokumentacja' },
   { href: '/informator', label: 'Informator' },
 ];

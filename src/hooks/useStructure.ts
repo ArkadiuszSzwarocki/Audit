@@ -4,12 +4,14 @@ export interface Area {
   id: string;
   name: string;
   description: string | null;
+  shortCode?: string | null;
 }
 
 export interface Machine {
   id: string;
   name: string;
   description: string | null;
+  shortCode?: string | null;
   areaId: string;
 }
 
@@ -52,11 +54,11 @@ export function useStructure() {
     loadData(true);
   }, [loadData]);
 
-  const addArea = async (name: string, description?: string) => {
+  const addArea = async (name: string, shortCode?: string, description?: string) => {
     const res = await fetch('/api/areas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description }),
+      body: JSON.stringify({ name, shortCode, description }),
     });
     if (!res.ok) {
       const data = await res.json();
@@ -65,17 +67,43 @@ export function useStructure() {
     await fetchAreas();
   };
 
-  const addMachine = async (name: string, areaId: string, description?: string) => {
+  const updateArea = async (id: string, data: { name?: string; shortCode?: string | null; description?: string }) => {
+    const res = await fetch(`/api/areas/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const resData = await res.json();
+      throw new Error(resData.error || 'Błąd edycji rejonu');
+    }
+    await fetchAreas();
+  };
+
+  const addMachine = async (name: string, areaId: string, shortCode?: string, description?: string) => {
     const res = await fetch('/api/machines', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, areaId, description }),
+      body: JSON.stringify({ name, areaId, shortCode, description }),
     });
     if (!res.ok) {
       const data = await res.json();
       throw new Error(data.error || 'Błąd dodawania maszyny');
     }
     await fetchMachines();
+  };
+
+  const updateMachine = async (id: string, data: { name?: string; shortCode?: string | null; areaId?: string; description?: string }) => {
+    const res = await fetch(`/api/machines/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const resData = await res.json();
+      throw new Error(resData.error || 'Błąd edycji maszyny');
+    }
+    await loadData(false);
   };
 
   const deleteArea = async (id: string) => {
@@ -102,7 +130,9 @@ export function useStructure() {
     loading,
     error,
     addArea,
+    updateArea,
     addMachine,
+    updateMachine,
     deleteArea,
     deleteMachine,
     refresh: loadData

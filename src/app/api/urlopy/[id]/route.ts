@@ -66,7 +66,11 @@ async function getSessionUser(req: NextRequest) {
   return null;
 }
 
-export async function PATCH(
+/**
+ * DELETE /api/urlopy/[id] — usuwa wniosek urlopowy (Kierownicy, Managerowie, Zarząd, Admini oraz Przełożeni).
+ * Jeśli wniosek był zatwierdzony (APPROVED), zwraca dni do puli urlopowej użytkownika.
+ */
+export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -77,11 +81,8 @@ export async function PATCH(
     }
 
     const { id } = params;
-    const body = await req.json();
-    const { status, approverNote } = body;
-
-    if (!['APPROVED', 'REJECTED', 'PENDING'].includes(status)) {
-      return NextResponse.json({ error: 'Nieznany status' }, { status: 400 });
+    if (!id) {
+      return NextResponse.json({ error: 'Brak ID wniosku' }, { status: 400 });
     }
 
     const leaveRequest = await prisma.leaveRequest.findUnique({
@@ -94,10 +95,13 @@ export async function PATCH(
     });
 
     if (!leaveRequest) {
-      return NextResponse.json({ error: 'Wniosek nie istnieje' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Nie znaleziono wniosku urlopowego' },
+        { status: 404 }
+      );
     }
 
-    // Weryfikacja roli w bazie danych
+    // Pobierz aktualną rolę z bazy danych
     let userRole = sessionUser.role.toUpperCase().trim();
     if (sessionUser.id !== 'admin-fallback') {
       const dbUser = await prisma.user.findUnique({
@@ -109,10 +113,11 @@ export async function PATCH(
 
     const isManagementOrBoard = sessionUser.id === 'admin-fallback' || ALLOWED_MANAGEMENT_ROLES.has(userRole);
     const isDirectApprover = leaveRequest.approverId === sessionUser.id;
+    const isSelf = leaveRequest.userId === sessionUser.id;
 
-    if (!isManagementOrBoard && !isDirectApprover) {
+    if (!isManagementOrBoard && !isDirectApprover && !isSelf) {
       return NextResponse.json(
-        { error: 'Brak uprawnień przełożonego, zarządu lub administratora do modyfikacji tego wniosku' },
+        { error: 'Brak uprawnień przełożonego, zarządu lub administratora do usunięcia tego wniosku' },
         { status: 403 }
       );
     }
@@ -121,7 +126,7 @@ export async function PATCH(
     const end = new Date(leaveRequest.endDate);
     const year = start.getFullYear();
 
-    // Obliczenie dni roboczych
+    // Obliczanie dni roboczych
     let workingDaysCount = 0;
     const cursor = new Date(start);
     while (cursor <= end) {
@@ -133,89 +138,52 @@ export async function PATCH(
     }
     if (workingDaysCount === 0) workingDaysCount = 1;
 
-    const previousStatus = leaveRequest.status;
-
+    // Transakcja: jeśli wniosek był APPROVED, zwróć dni do puli i usuń wniosek
+    let restoredDays = 0;
     await prisma.$transaction(async (tx) => {
-      // 1. Zmiana statusu wniosku
-      await tx.leaveRequest.update({
-        where: { id },
-        data: {
-          status,
-          approverId: sessionUser.id !== 'admin-fallback' ? sessionUser.id : null,
-          approvedAt: status === 'APPROVED' ? new Date() : null,
-          reason: approverNote ? `[Uwaga przełożonego: ${approverNote}] ${leaveRequest.reason || ''}` : leaveRequest.reason,
-        },
-      });
-
-      // 2. Jeśli wniosek staje się APPROVED (z PENDING lub REJECTED) -> odejmij dni z puli
-      if (status === 'APPROVED' && previousStatus !== 'APPROVED') {
-        let balance = await tx.leaveBalance.findUnique({
-          where: { userId_year: { userId: leaveRequest.userId, year } },
-        });
-
-        if (!balance) {
-          balance = await tx.leaveBalance.create({
-            data: {
+      if (leaveRequest.status === 'APPROVED') {
+        const balance = await tx.leaveBalance.findUnique({
+          where: {
+            userId_year: {
               userId: leaveRequest.userId,
               year,
-              totalDays: 26,
-              usedDays: 0,
-              availableDays: 26,
-              overdueDays: 0,
-              usedOverdueDays: 0,
             },
-          });
-        }
-
-        const newUsedDays = balance.usedDays + workingDaysCount;
-        const remainingOverdue = Math.max(0, balance.overdueDays - balance.usedOverdueDays);
-        const remainingCurrent = Math.max(0, balance.totalDays - newUsedDays);
-        const newAvailableDays = remainingOverdue + remainingCurrent;
-
-        await tx.leaveBalance.update({
-          where: { id: balance.id },
-          data: {
-            usedDays: newUsedDays,
-            availableDays: newAvailableDays,
           },
-        });
-      }
-
-      // 3. Jeśli wniosek zostaje wycofany z APPROVED na REJECTED lub PENDING -> zwróć dni do puli
-      if (previousStatus === 'APPROVED' && status !== 'APPROVED') {
-        const balance = await tx.leaveBalance.findUnique({
-          where: { userId_year: { userId: leaveRequest.userId, year } },
         });
 
         if (balance) {
-          const newUsedDays = Math.max(0, balance.usedDays - workingDaysCount);
+          const updatedUsedDays = Math.max(0, balance.usedDays - workingDaysCount);
           const remainingOverdue = Math.max(0, balance.overdueDays - balance.usedOverdueDays);
-          const remainingCurrent = Math.max(0, balance.totalDays - newUsedDays);
-          const newAvailableDays = remainingOverdue + remainingCurrent;
+          const remainingCurrent = Math.max(0, balance.totalDays - updatedUsedDays);
+          const updatedAvailableDays = remainingOverdue + remainingCurrent;
 
           await tx.leaveBalance.update({
             where: { id: balance.id },
             data: {
-              usedDays: newUsedDays,
-              availableDays: newAvailableDays,
+              usedDays: updatedUsedDays,
+              availableDays: updatedAvailableDays,
             },
           });
+          restoredDays = workingDaysCount;
         }
       }
+
+      await tx.leaveRequest.delete({
+        where: { id },
+      });
     });
 
     return NextResponse.json({
       success: true,
-      message: status === 'APPROVED'
-        ? 'Wniosek został zatwierdzony, a dni zostały odjęte z puli urlopowej.'
-        : status === 'REJECTED'
-        ? 'Wniosek został odrzucony.'
-        : 'Zmieniono status wniosku.',
+      message: leaveRequest.status === 'APPROVED'
+        ? `Usunięto zatwierdzony wniosek urlopowy. ${restoredDays} dni powróciło do puli urlopowej.`
+        : 'Wniosek urlopowy został usunięty.',
+      restoredDays,
     });
   } catch (error: any) {
-    console.error('PATCH /api/urlopy/[id]/status error:', error);
+    console.error('DELETE /api/urlopy/[id] error:', error);
     return NextResponse.json(
-      { error: error.message || 'Błąd modyfikacji statusu wniosku' },
+      { error: error.message || 'Błąd podczas usuwania wniosku urlopowego' },
       { status: 500 }
     );
   }

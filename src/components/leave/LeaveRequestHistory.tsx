@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { useLeaves } from '@/hooks/useLeaves';
+import { useToast } from '@/context/ToastContext';
 
 interface LeaveRequestHistoryItem {
   id: string;
@@ -40,6 +43,10 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; i
 };
 
 export function LeaveRequestHistory({ userId }: LeaveRequestHistoryProps) {
+  const { isAdmin } = useAuth();
+  const { showToast, showConfirm } = useToast();
+  const { deleteLeaveRequest, fetchLeaveBalance } = useLeaves();
+
   const [requests, setRequests] = useState<LeaveRequestHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
@@ -65,12 +72,43 @@ export function LeaveRequestHistory({ userId }: LeaveRequestHistoryProps) {
     }
   }, [userId, fetchRequests]);
 
-  // Nasłuchiwanie na zdarzenie custom odświeżenia (po złożeniu wniosku)
+  // Nasłuchiwanie na zdarzenie custom odświeżenia (po złożeniu/usunięciu wniosku)
   useEffect(() => {
     const handler = () => fetchRequests();
     window.addEventListener('leave-request-created', handler);
     return () => window.removeEventListener('leave-request-created', handler);
   }, [fetchRequests]);
+
+  const handleDeleteRequest = (req: LeaveRequestHistoryItem) => {
+    const typeLabel = TYPE_LABELS[req.type]?.label || req.type;
+    const isApproved = req.status === 'APPROVED';
+
+    const message = isApproved
+      ? `Czy na pewno chcesz usunąć ten ZATWIERDZONY wniosek urlopowy (${typeLabel}, ${req.daysCount ?? 1} dni)? Dni z tego wniosku automatycznie powrócą do puli urlopowej użytkownika!`
+      : `Czy na pewno chcesz usunąć ten wniosek urlopowy (${typeLabel})?`;
+
+    showConfirm({
+      title: 'Usuwanie wniosku urlopowego',
+      message,
+      confirmText: 'Usuń wniosek',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const result = await deleteLeaveRequest(req.id);
+          showToast(
+            result.message || 'Wniosek urlopowy został usunięty.',
+            'success'
+          );
+          fetchRequests();
+          fetchLeaveBalance(userId);
+          // Powiadom inne komponenty o konieczności odświeżenia
+          window.dispatchEvent(new CustomEvent('leave-request-created'));
+        } catch (err: any) {
+          showToast(err.message || 'Błąd podczas usuwania wniosku', 'error');
+        }
+      },
+    });
+  };
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('pl-PL', {
@@ -108,7 +146,7 @@ export function LeaveRequestHistory({ userId }: LeaveRequestHistoryProps) {
         </div>
         <button
           onClick={fetchRequests}
-          className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium"
+          className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium cursor-pointer"
         >
           🔄 Odśwież
         </button>
@@ -118,7 +156,7 @@ export function LeaveRequestHistory({ userId }: LeaveRequestHistoryProps) {
       <div className="grid grid-cols-3 gap-3 mb-6">
         <button
           onClick={() => setFilter(filter === 'PENDING' ? 'ALL' : 'PENDING')}
-          className={`p-3 rounded-lg border-2 transition-all text-center ${
+          className={`p-3 rounded-lg border-2 transition-all text-center cursor-pointer ${
             filter === 'PENDING'
               ? 'border-amber-400 bg-amber-50'
               : 'border-gray-200 bg-gray-50 hover:border-amber-300'
@@ -129,7 +167,7 @@ export function LeaveRequestHistory({ userId }: LeaveRequestHistoryProps) {
         </button>
         <button
           onClick={() => setFilter(filter === 'APPROVED' ? 'ALL' : 'APPROVED')}
-          className={`p-3 rounded-lg border-2 transition-all text-center ${
+          className={`p-3 rounded-lg border-2 transition-all text-center cursor-pointer ${
             filter === 'APPROVED'
               ? 'border-green-400 bg-green-50'
               : 'border-gray-200 bg-gray-50 hover:border-green-300'
@@ -140,7 +178,7 @@ export function LeaveRequestHistory({ userId }: LeaveRequestHistoryProps) {
         </button>
         <button
           onClick={() => setFilter(filter === 'REJECTED' ? 'ALL' : 'REJECTED')}
-          className={`p-3 rounded-lg border-2 transition-all text-center ${
+          className={`p-3 rounded-lg border-2 transition-all text-center cursor-pointer ${
             filter === 'REJECTED'
               ? 'border-red-400 bg-red-50'
               : 'border-gray-200 bg-gray-50 hover:border-red-300'
@@ -199,7 +237,7 @@ export function LeaveRequestHistory({ userId }: LeaveRequestHistoryProps) {
                       <div className="text-sm text-gray-600 mt-0.5">
                         {formatDate(req.startDate)} — {formatDate(req.endDate)}
                         <span className="ml-2 font-bold text-gray-800">
-                          ({req.daysCount || 1} {(req.daysCount || 1) === 1 ? 'dzień' : 'dni'})
+                          ({req.daysCount ?? 1} {(req.daysCount ?? 1) === 1 ? 'dzień' : 'dni'})
                         </span>
                       </div>
                       {req.reason && (
@@ -213,8 +251,8 @@ export function LeaveRequestHistory({ userId }: LeaveRequestHistoryProps) {
                     </div>
                   </div>
 
-                  {/* Right: status */}
-                  <div className="flex flex-col items-end gap-1">
+                  {/* Right: status & actions */}
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
                     <span
                       className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${statusInfo.bg} ${statusInfo.text}`}
                     >
@@ -234,6 +272,17 @@ export function LeaveRequestHistory({ userId }: LeaveRequestHistoryProps) {
                       <span className="text-xs text-gray-500 italic max-w-[200px] text-right">
                         „{req.approverNote}"
                       </span>
+                    )}
+
+                    {/* Przycisk usuwania dla Admina */}
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleDeleteRequest(req)}
+                        className="mt-1 text-xs px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 font-semibold rounded-md border border-red-200 transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Usuń wniosek (zwraca dni do puli jeśli zatwierdzony)"
+                      >
+                        <span>🗑️</span> Usuń wniosek
+                      </button>
                     )}
                   </div>
                 </div>

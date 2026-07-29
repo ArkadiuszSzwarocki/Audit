@@ -28,7 +28,27 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json(requests);
+    const normalizedRequests = requests.map((request) => {
+      const start = new Date(request.startDate);
+      const end = new Date(request.endDate);
+      let computedDays = 0;
+      const cursor = new Date(start);
+
+      while (cursor <= end) {
+        const day = cursor.getDay();
+        if (day >= 1 && day <= 5) {
+          computedDays += 1;
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      return {
+        ...request,
+        daysCount: computedDays === 0 ? 1 : computedDays,
+      };
+    });
+
+    return NextResponse.json(normalizedRequests);
   } catch (error: unknown) {
     console.error('GET /api/urlopy error:', error);
     return NextResponse.json(
@@ -79,12 +99,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Oblicz liczbę dni roboczych (Mon-Fri)
+    // Walidacja kolizji — sprawdź czy użytkownik nie ma już wniosku PENDING/APPROVED w tym zakresie
+    const overlappingLeave = await prisma.leaveRequest.findFirst({
+      where: {
+        userId,
+        status: { in: ['PENDING', 'APPROVED'] },
+        startDate: { lte: end },
+        endDate: { gte: start },
+      },
+    });
+
+    if (overlappingLeave) {
+      const overlapStart = new Date(overlappingLeave.startDate).toLocaleDateString('pl-PL');
+      const overlapEnd = new Date(overlappingLeave.endDate).toLocaleDateString('pl-PL');
+      return NextResponse.json(
+        { error: `W wybranym okresie istnieje już wniosek urlopowy (${overlapStart} — ${overlapEnd})` },
+        { status: 409 }
+      );
+    }
+
+    // Oblicz liczbę dni roboczych (poniedziałek-piątek) w zakresie inclusive
     let daysCount = 0;
     const cursor = new Date(start);
     while (cursor <= end) {
       const day = cursor.getDay();
-      if (day !== 0 && day !== 6) {
+      if (day >= 1 && day <= 5) {
         daysCount += 1;
       }
       cursor.setDate(cursor.getDate() + 1);

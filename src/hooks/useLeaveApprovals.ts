@@ -73,7 +73,7 @@ export function useLeaveApprovals() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'approve',
-          leaveRequestId,
+          requestId: leaveRequestId,
           reason
         })
       });
@@ -103,7 +103,7 @@ export function useLeaveApprovals() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'reject',
-          leaveRequestId,
+          requestId: leaveRequestId,
           reason
         })
       });

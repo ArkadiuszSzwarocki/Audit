@@ -25,10 +25,20 @@ export function useAuth() {
     );
     const isAdminRole = Boolean(
       data.isAdmin ||
-      userRoleUpper === 'ADMIN' ||
-      userRoleUpper === 'ADMINISTRATOR' ||
-      userRoleUpper === 'ZARZAD' ||
-      userRoleUpper === 'BOARD'
+      [
+        'ADMIN',
+        'ADMINISTRATOR',
+        'MASTERADMIN',
+        'SUPERADMIN',
+        'ZARZAD',
+        'BOARD',
+        'DIRECTOR',
+        'DYREKTOR',
+        'KIEROWNIK',
+        'MANAGER',
+        'BRYGADZISTA',
+        'LEADER',
+      ].includes(userRoleUpper)
     );
 
     setIsAdmin(isAdminRole);

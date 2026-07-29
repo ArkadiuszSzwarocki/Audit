@@ -32,10 +32,7 @@ export function LeaveApprovalDetail({ leave, onApprovalComplete }: LeaveApproval
   const calculateDays = (): number => {
     const start = new Date(leave.startDate);
     const end = new Date(leave.endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    // Policz dni robocze
+
     let workDays = 0;
     const current = new Date(start);
     while (current <= end) {
@@ -44,7 +41,8 @@ export function LeaveApprovalDetail({ leave, onApprovalComplete }: LeaveApproval
       }
       current.setDate(current.getDate() + 1);
     }
-    return workDays;
+
+    return workDays === 0 ? 1 : workDays;
   };
 
   const handleApprove = async () => {

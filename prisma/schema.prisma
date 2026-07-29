@@ -11,6 +11,7 @@ model Area {
   id               String            @id @default(uuid())
   name             String
   description      String?
+  shortCode        String?
   shiftMode        Int               @default(3)
   parentAreaId     String?
   headUserId       String?
@@ -33,6 +34,7 @@ model Machine {
   id               String            @id @default(uuid())
   name             String
   description      String?
+  shortCode        String?
   areaId           String
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt

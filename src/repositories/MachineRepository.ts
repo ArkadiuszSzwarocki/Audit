@@ -23,9 +23,17 @@ export class MachineRepository {
     });
   }
 
-  async create(data: { name: string; description?: string; areaId: string }): Promise<Machine> {
+  async create(data: { name: string; description?: string; shortCode?: string; areaId: string }): Promise<Machine> {
     return prisma.machine.create({
       data
+    });
+  }
+
+  async update(id: string, data: { name?: string; description?: string; shortCode?: string | null; areaId?: string }): Promise<Machine> {
+    return prisma.machine.update({
+      where: { id },
+      data,
+      include: { area: true }
     });
   }
 

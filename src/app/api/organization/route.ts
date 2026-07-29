@@ -3,6 +3,15 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/config/db';
 import { getAuthSession } from '@/lib/auth';
 
+/** Roles dozwolone do zarządzania strukturą organizacyjną. */
+const ALLOWED_MANAGEMENT_ROLES = new Set([
+  'ADMIN', 'ADMINISTRATOR', 'ZARZAD', 'ZARZĄD', 'BOARD',
+]);
+
+function hasManagementAccess(role: string): boolean {
+  return ALLOWED_MANAGEMENT_ROLES.has(role.toUpperCase());
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -69,6 +78,13 @@ export async function POST(request: Request) {
     const session = await getAuthSession();
     if (!session) {
       return NextResponse.json({ error: 'Brak autoryzacji' }, { status: 401 });
+    }
+
+    if (!hasManagementAccess(session.role)) {
+      return NextResponse.json(
+        { error: 'Brak uprawnień. Tylko Administrator i Zarząd mogą zarządzać strukturą organizacyjną.' },
+        { status: 403 }
+      );
     }
 
     const body = await request.json().catch(() => ({}));
@@ -224,8 +240,85 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Brakujące ID departamentu' }, { status: 400 });
       }
 
-      await prisma.area.delete({
+      const area = await prisma.area.findUnique({
         where: { id: departmentId },
+        include: {
+          childAreas: { select: { id: true } },
+          machines: { select: { id: true } },
+          responsibleUsers: { select: { id: true } },
+          audits: { select: { id: true } },
+          kaizens: { select: { id: true } },
+          faultReports: { select: { id: true } },
+          qualityReports: { select: { id: true } },
+        },
+      });
+
+      if (!area) {
+        return NextResponse.json({ error: 'Nie znaleziono departamentu' }, { status: 404 });
+      }
+
+      if (area.childAreas.length > 0) {
+        return NextResponse.json(
+          { error: 'Nie można usunąć departamentu z pod-departamentami. Usuń je najpierw.' },
+          { status: 400 }
+        );
+      }
+
+      // Transakcja: odłącz lub usuń wszystkie powiązane rekordy, a następnie usuń departament
+      await prisma.$transaction(async (tx) => {
+        // Usuń powiązane audyty (oraz kaskadowo odpowiedzi i obserwacje)
+        if (area.audits.length > 0) {
+          await tx.audit.deleteMany({ where: { areaId: departmentId } });
+        }
+
+        if (area.responsibleUsers.length > 0) {
+          await tx.user.updateMany({
+            where: { responsibleAreaId: departmentId },
+            data: { responsibleAreaId: null },
+          });
+        }
+
+        // Odłącz kaizeny (areaId nullable → set null)
+        if (area.kaizens.length > 0) {
+          await tx.kaizen.updateMany({
+            where: { areaId: departmentId },
+            data: { areaId: null },
+          });
+        }
+
+        // Odłącz zgłoszenia usterek (areaId nullable → set null)
+        if (area.faultReports.length > 0) {
+          await tx.faultReport.updateMany({
+            where: { areaId: departmentId },
+            data: { areaId: null },
+          });
+        }
+
+        // Odłącz raporty jakości (areaId nullable → set null)
+        if (area.qualityReports.length > 0) {
+          await tx.qualityReport.updateMany({
+            where: { areaId: departmentId },
+            data: { areaId: null },
+          });
+        }
+
+        // Wyczyść headUserId na self-referencing Area
+        await tx.area.update({
+          where: { id: departmentId },
+          data: { headUserId: null },
+        });
+
+        if (area.machines.length > 0) {
+          const machineIds = area.machines.map((m) => m.id);
+          await tx.audit.updateMany({ where: { machineId: { in: machineIds } }, data: { machineId: null } });
+          await tx.kaizen.updateMany({ where: { machineId: { in: machineIds } }, data: { machineId: null } });
+          await tx.faultReport.updateMany({ where: { machineId: { in: machineIds } }, data: { machineId: null } });
+          await tx.qualityReport.updateMany({ where: { machineId: { in: machineIds } }, data: { machineId: null } });
+          await tx.bhpHazardReport.updateMany({ where: { machineId: { in: machineIds } }, data: { machineId: null } });
+          await tx.machine.deleteMany({ where: { areaId: departmentId } });
+        }
+
+        await tx.area.delete({ where: { id: departmentId } });
       });
 
       return NextResponse.json({ success: true });

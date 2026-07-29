@@ -15,8 +15,15 @@ export class AreaRepository {
     });
   }
 
-  async create(data: { name: string; description?: string }): Promise<Area> {
+  async create(data: { name: string; description?: string; shortCode?: string }): Promise<Area> {
     return prisma.area.create({
+      data
+    });
+  }
+
+  async update(id: string, data: { name?: string; description?: string; shortCode?: string | null }): Promise<Area> {
+    return prisma.area.update({
+      where: { id },
       data
     });
   }

@@ -5,9 +5,35 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const statusParam = searchParams.get('status') || 'PENDING';
+    const managerId = searchParams.get('managerId');
+    const action = searchParams.get('action');
+
+    const where: Record<string, unknown> = statusParam === 'ALL' ? {} : { status: statusParam };
+
+    if (managerId) {
+      where.OR = [
+        { approverId: managerId },
+        { approverId: null },
+      ];
+    }
+
+    if (action === 'stats') {
+      const requests = await prisma.leaveRequest.findMany({
+        where,
+        select: { status: true },
+      });
+
+      const stats = {
+        pending: requests.filter((request) => request.status === 'PENDING').length,
+        approved: requests.filter((request) => request.status === 'APPROVED').length,
+        rejected: requests.filter((request) => request.status === 'REJECTED').length,
+      };
+
+      return NextResponse.json(stats);
+    }
 
     const requests = await prisma.leaveRequest.findMany({
-      where: statusParam === 'ALL' ? {} : { status: statusParam },
+      where,
       include: {
         user: {
           select: {
@@ -26,7 +52,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json({ success: true, data: requests });
+    return NextResponse.json(requests);
   } catch (error: any) {
     console.error('Error fetching leave approvals:', error);
     return NextResponse.json({ error: 'Błąd podczas pobierania wniosków urlopowych' }, { status: 500 });
@@ -36,7 +62,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { requestId, action, reason, approverId } = body;
+    const requestId = body.requestId || body.leaveRequestId;
+    const action = typeof body.action === 'string' ? body.action.toUpperCase() : undefined;
+    const { reason, approverId } = body;
 
     if (!requestId || !action) {
       return NextResponse.json({ error: 'Brakujące parametry wniosku' }, { status: 400 });
