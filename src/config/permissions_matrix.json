@@ -1,0 +1,434 @@
+{
+  "dashboard.view": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": true
+  },
+  "dashboard.export": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "faults.view": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "faults.create": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "faults.update_status": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "faults.assign_mechanic": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "faults.delete": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": false,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "faults.print_pdf": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "kaizen.view": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": true
+  },
+  "kaizen.create": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": true
+  },
+  "kaizen.score": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": false,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": false
+  },
+  "kaizen.manage_payouts": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": false,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": false
+  },
+  "kaizen.delete": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": false,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "leaves.view_calendar": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": true
+  },
+  "leaves.create_request": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": true
+  },
+  "leaves.view_team_calendar": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": true
+  },
+  "leaves.approve": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "leaves.cancel_approved": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "leaves.manage_balances": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": false,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "leaves.export_reports": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "qr.view": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": true
+  },
+  "qr.create": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": true
+  },
+  "qr.edit_shortcode": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "qr.print_3x4": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": true
+  },
+  "bhp.view": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": true
+  },
+  "bhp.create_report": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": true
+  },
+  "bhp.manage_actions": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "bhp.manage_trainings": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "quality.view": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "quality.create": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "quality.decide": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "quality.print_pdf": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "structure.view": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": true
+  },
+  "structure.create": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": false,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "structure.edit": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "structure.delete": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": false,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "users.view": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "users.create": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "users.edit": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": false,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "users.reset_password": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "users.delete": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  },
+  "audits.view": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "audits.start": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "audits.evaluate": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "audits.print_pdf": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": true
+  },
+  "helpdesk.view": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": true
+  },
+  "helpdesk.create": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": true,
+    "OPERATOR": true,
+    "KOMISJA_KAIZEN": true,
+    "INSPEKTOR": true
+  },
+  "helpdesk.resolve": {
+    "ADMIN": true,
+    "ZARZAD": true,
+    "KIEROWNIK": true,
+    "BRYGADZISTA": false,
+    "OPERATOR": false,
+    "KOMISJA_KAIZEN": false,
+    "INSPEKTOR": false
+  }
+}

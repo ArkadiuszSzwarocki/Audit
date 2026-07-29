@@ -131,6 +131,9 @@ export function LeaveCalendar({
   const getLeaveInfoForDate = (date: Date): LeaveInfo | undefined => {
     const dateStr = toDateStr(date);
     for (const leave of leaveRequests) {
+      // Odrzucone wnioski (REJECTED) nie są aktywne i znikają z kalendarza roboczego
+      if (leave.status === 'REJECTED') continue;
+
       const startStr = toDateStr(leave.startDate);
       const endStr = toDateStr(leave.endDate);
 

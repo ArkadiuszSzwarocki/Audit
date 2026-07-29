@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 import { AreaService } from '@/services/AreaService';
 import { getAuthSession } from '@/lib/auth';
+import { checkRolePermission } from '@/lib/permissions';
 
 /** Roles dozwolone do zarządzania strukturą (rejony, maszyny, departamenty). */
 const ALLOWED_MANAGEMENT_ROLES = new Set([
-  'ADMIN', 'ADMINISTRATOR', 'ZARZAD', 'ZARZĄD', 'BOARD',
+  'ADMIN', 'ADMINISTRATOR', 'ZARZAD', 'ZARZĄD', 'BOARD', 'KIEROWNIK', 'MANAGER', 'DYREKTOR', 'DIRECTOR',
 ]);
 
 function hasManagementAccess(role: string): boolean {
-  return ALLOWED_MANAGEMENT_ROLES.has(role.toUpperCase());
+  if (ALLOWED_MANAGEMENT_ROLES.has((role || '').toUpperCase())) return true;
+  return checkRolePermission(role, 'structure.create');
 }
 
 const areaService = new AreaService();
@@ -33,7 +35,7 @@ export async function POST(request: Request) {
 
     if (!hasManagementAccess(session.role)) {
       return NextResponse.json(
-        { error: 'Brak uprawnień. Tylko Administrator i Zarząd mogą dodawać rejony.' },
+        { error: 'Brak uprawnień. Operatorzy posiadają dostęp wyłącznie do podglądu.' },
         { status: 403 }
       );
     }

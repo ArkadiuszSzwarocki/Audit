@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStructure, Area, Machine } from '@/hooks/useStructure';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,11 +9,17 @@ import { QrCodeLabelModal, QrLabelItem } from '@/components/ui/QrCodeLabelModal'
 import { QrCodeSelectionModal, QrSelectableItem } from '@/components/ui/QrCodeSelectionModal';
 
 export default function StructurePage() {
-  const { isAdmin, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { showToast, showConfirm } = useToast();
   const { areas, machines, loading, error, addArea, updateArea, addMachine, updateMachine, deleteArea, deleteMachine } = useStructure();
   
+  const canEditStructure = useMemo(() => {
+    if (!user) return false;
+    const role = (user.role || '').toUpperCase();
+    return ['ADMIN', 'ADMINISTRATOR', 'ZARZAD', 'ZARZĄD', 'BOARD', 'KIEROWNIK', 'MANAGER', 'DYREKTOR', 'DIRECTOR'].includes(role);
+  }, [user]);
+
   const [newAreaName, setNewAreaName] = useState('');
   const [newAreaShortCode, setNewAreaShortCode] = useState('');
 
@@ -41,13 +47,17 @@ export default function StructurePage() {
   } | null>(null);
 
   useEffect(() => {
-    if (!authLoading && !isAdmin) {
-      router.push('/');
+    if (!authLoading && !user) {
+      router.push('/logowanie');
     }
-  }, [isAdmin, authLoading, router]);
+  }, [user, authLoading, router]);
 
   const handleAddArea = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditStructure) {
+      showToast('Brak uprawnień do edycji struktury (Tryb podglądu)', 'error');
+      return;
+    }
     if (!newAreaName) return;
     try {
       await addArea(newAreaName, newAreaShortCode || undefined);
@@ -61,6 +71,10 @@ export default function StructurePage() {
 
   const handleAddMachine = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditStructure) {
+      showToast('Brak uprawnień do edycji struktury (Tryb podglądu)', 'error');
+      return;
+    }
     if (!newMachineName || !selectedAreaId) return;
     try {
       await addMachine(newMachineName, selectedAreaId, newMachineShortCode || undefined);
@@ -75,6 +89,10 @@ export default function StructurePage() {
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditStructure) {
+      showToast('Brak uprawnień do edycji (Tryb podglądu)', 'error');
+      return;
+    }
     if (!editingItem || !editingItem.name.trim()) return;
 
     try {
@@ -98,31 +116,115 @@ export default function StructurePage() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center animate-pulse">Ładowanie struktury...</div>;
-  if (error) return <div className="p-8 text-center text-red-500">Błąd: {error}</div>;
+  const handleDeleteArea = (id: string, name: string) => {
+    if (!canEditStructure) {
+      showToast('Brak uprawnień do usuwania rejonu (Tryb podglądu)', 'error');
+      return;
+    }
+    showConfirm({
+      title: 'Usuwanie rejonu',
+      message: `Czy na pewno chcesz usunąć rejon "${name}"? Przypisane maszyny również zostaną usunięte!`,
+      confirmText: 'Usuń rejon',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await deleteArea(id);
+          showToast('Rejon został usunięty', 'success');
+        } catch (err: any) {
+          showToast(err.message, 'error');
+        }
+      },
+    });
+  };
+
+  const handleDeleteMachine = (id: string, name: string) => {
+    if (!canEditStructure) {
+      showToast('Brak uprawnień do usuwania maszyny (Tryb podglądu)', 'error');
+      return;
+    }
+    showConfirm({
+      title: 'Usuwanie maszyny',
+      message: `Czy na pewno chcesz usunąć maszynę "${name}"?`,
+      confirmText: 'Usuń maszynę',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await deleteMachine(id);
+          showToast('Maszyna została usunięta', 'success');
+        } catch (err: any) {
+          showToast(err.message, 'error');
+        }
+      },
+    });
+  };
+
+  // Przygotuj elementy do selektora kodów QR
+  const qrSelectableItems: QrSelectableItem[] = useMemo(() => {
+    const areaItems: QrSelectableItem[] = areas.map((a) => ({
+      id: a.id,
+      title: a.name,
+      subtitle: 'Rejon Fabryczny',
+      code: `AREA:${a.id}`,
+      shortCode: a.shortCode,
+      typeLabel: 'Rejon',
+      groupKey: 'Rejony Fabryczne',
+    }));
+
+    const machineItems: QrSelectableItem[] = machines.map((m) => {
+      const area = areas.find((a) => a.id === m.areaId);
+      return {
+        id: m.id,
+        title: m.name,
+        subtitle: area ? `Rejon: ${area.name}` : 'Maszyna Produkcyjna',
+        code: `MACHINE:${m.id}`,
+        shortCode: m.shortCode,
+        typeLabel: 'Maszyna',
+        groupKey: area ? `Rejon: ${area.name}` : 'Pozostałe Maszyny',
+      };
+    });
+
+    return [...areaItems, ...machineItems];
+  }, [areas, machines]);
+
+  if (authLoading || loading) {
+    return <div className="p-8 text-center text-slate-500 font-medium animate-pulse">Ładowanie struktury zakładu...</div>;
+  }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 max-w-5xl mx-auto pb-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-4 border-slate-200 dark:border-slate-800 gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <span>⚙️</span> Zarządzanie Strukturą Zakładu
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
-            Zarządzaj rejonami i maszynami, przypisuj synonimy (np. MID01, MIM01) oraz generuj etykiety QR 7.5x7.5 cm.
+    <div className="w-full space-y-6 animate-in fade-in duration-300 pb-12">
+      {/* Baner Górny */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🏭</span>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+              Struktura Rejonów i Maszyn
+            </h1>
+          </div>
+          <p className="text-slate-400 text-sm max-w-2xl">
+            Baza obszarów fabrycznych i maszyn. Dostęp do kodów QR i synonimów.
           </p>
         </div>
 
-        {/* Przyciski Zbiorczego Pobierania i Drukowania Kodów QR */}
-        <div className="flex flex-wrap gap-2 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={() => setIsSelectionModalOpen(true)}
             className="py-2.5 px-4 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-2xl text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer"
           >
-            <span>📱</span> Pobierz / Drukuj Kody QR... ({areas.length + machines.length} szt.)
+            <span>📱</span> Pobierz / Drukuj Kody QR ({areas.length + machines.length} szt.)
           </button>
         </div>
       </div>
+
+      {/* Baner informacyjny dla Operatora (Tryb Read-Only) */}
+      {!canEditStructure && (
+        <div className="p-4 bg-blue-50 dark:bg-slate-800/80 border border-blue-200 dark:border-slate-700 rounded-2xl text-xs text-blue-900 dark:text-blue-200 font-semibold flex items-center gap-3">
+          <span className="text-xl">ℹ️</span>
+          <div>
+            <strong>Tryb Podglądu Struktury (Read-Only):</strong> Jesteś zalogowany jako Operator. Posiadasz pełen podgląd bazy rejonów, maszyn i synonimów oraz dostęp do druku kodów QR. Edycja i wprowadzanie zmian są zarezerwowane dla Kierowników i Administratorów.
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Rejony */}
@@ -132,7 +234,7 @@ export default function StructurePage() {
               <span>🏭</span> Rejony Fabryki
             </h2>
             
-            {isAdmin && (
+            {canEditStructure && (
               <form onSubmit={handleAddArea} className="flex flex-col gap-2 mb-6 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
                 <div className="text-xs font-bold text-slate-500 uppercase">Dodaj nowy rejon</div>
                 <div className="flex gap-2">
@@ -151,7 +253,7 @@ export default function StructurePage() {
                     className="w-32 px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-500 outline-none uppercase"
                   />
                 </div>
-                <button type="submit" className="w-full py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl transition-colors font-bold text-xs">
+                <button type="submit" className="w-full py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl transition-colors font-bold text-xs cursor-pointer">
                   + Dodaj Rejon
                 </button>
               </form>
@@ -199,14 +301,14 @@ export default function StructurePage() {
                             },
                           })
                         }
-                        className="p-2 text-slate-600 hover:text-brand-600 bg-white dark:bg-slate-800 hover:bg-brand-50 border border-slate-200 dark:border-slate-700 rounded-xl transition-all shadow-sm"
+                        className="p-2 text-slate-600 hover:text-brand-600 bg-white dark:bg-slate-800 hover:bg-brand-50 border border-slate-200 dark:border-slate-700 rounded-xl transition-all shadow-sm cursor-pointer"
                         title="Generuj i pobierz etykietę QR (7.5x7.5 cm)"
                       >
                         📱
                       </button>
 
-                      {/* Edytuj */}
-                      {isAdmin && (
+                      {/* Edytuj (Tylko dla Kierowników/Admina) */}
+                      {canEditStructure && (
                         <button
                           onClick={() =>
                             setEditingItem({
@@ -216,29 +318,18 @@ export default function StructurePage() {
                               shortCode: area.shortCode || '',
                             })
                           }
-                          className="p-2 text-slate-600 hover:text-blue-600 bg-white dark:bg-slate-800 hover:bg-blue-50 border border-slate-200 dark:border-slate-700 rounded-xl transition-all shadow-sm"
+                          className="p-2 text-slate-600 hover:text-blue-600 bg-white dark:bg-slate-800 hover:bg-blue-50 border border-slate-200 dark:border-slate-700 rounded-xl transition-all shadow-sm cursor-pointer"
                           title="Edytuj nazwę i synonim"
                         >
                           ✏️
                         </button>
                       )}
 
-                      {/* Usuń */}
-                      {isAdmin && (
+                      {/* Usuń (Tylko dla Kierowników/Admina) */}
+                      {canEditStructure && (
                         <button
-                          onClick={() => {
-                            showConfirm({
-                              title: 'Usuwanie Rejonu',
-                              message: `Czy na pewno chcesz usunąć rejon "${area.name}"?`,
-                              confirmText: 'Usuń rejon',
-                              isDanger: true,
-                              onConfirm: async () => {
-                                await deleteArea(area.id);
-                                showToast('Rejon usunięty', 'success');
-                              }
-                            });
-                          }}
-                          className="p-2 text-slate-400 hover:text-red-600 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/30 border border-slate-200 dark:border-slate-700 rounded-xl transition-all shadow-sm"
+                          onClick={() => handleDeleteArea(area.id, area.name)}
+                          className="p-2 text-slate-600 hover:text-red-600 bg-white dark:bg-slate-800 hover:bg-red-50 border border-slate-200 dark:border-slate-700 rounded-xl transition-all shadow-sm cursor-pointer"
                           title="Usuń rejon"
                         >
                           🗑️
@@ -255,64 +346,64 @@ export default function StructurePage() {
         {/* Maszyny */}
         <section className="glass-card flex flex-col justify-between">
           <div>
-            <h2 className="text-xl font-bold mb-4 text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-              <span>⚙️</span> Maszyny i Urządzenia
+            <h2 className="text-xl font-bold mb-4 text-brand-600 dark:text-brand-400 flex items-center gap-2">
+              <span>⚙️</span> Maszyny w Rejonach
             </h2>
             
-            {isAdmin && (
+            {canEditStructure && (
               <form onSubmit={handleAddMachine} className="flex flex-col gap-2 mb-6 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
                 <div className="text-xs font-bold text-slate-500 uppercase">Dodaj nową maszynę</div>
-                <input 
-                  type="text" 
-                  placeholder="Nazwa maszyny (np. Mieszalnik Duży)" 
-                  value={newMachineName}
-                  onChange={e => setNewMachineName(e.target.value)}
-                  className="px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <select 
+                    value={selectedAreaId} 
+                    onChange={e => setSelectedAreaId(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-500 outline-none font-bold"
+                  >
+                    <option value="">-- Wybierz Rejon --</option>
+                    {areas.map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                  <input 
+                    type="text" 
+                    placeholder="Nazwa maszyny (np. Linia 1 Pakowania)" 
+                    value={newMachineName}
+                    onChange={e => setNewMachineName(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-500 outline-none"
+                  />
+                </div>
                 <div className="flex gap-2">
                   <input 
                     type="text" 
-                    placeholder="Synonim (np. MID01)" 
+                    placeholder="Synonim / Skrót maszyny (np. PAK01)" 
                     value={newMachineShortCode}
                     onChange={e => setNewMachineShortCode(e.target.value)}
-                    className="w-36 px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none uppercase"
+                    className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-brand-500 outline-none uppercase font-mono"
                   />
-                  <select 
-                    value={selectedAreaId}
-                    onChange={e => setSelectedAreaId(e.target.value)}
-                    className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
-                  >
-                    <option value="" disabled>Wybierz rejon produkcyjny</option>
-                    {areas
-                      .filter(area => !area.name.toLowerCase().includes('magazyn'))
-                      .map(area => (
-                        <option key={area.id} value={area.id}>{area.name} {area.shortCode ? `(${area.shortCode})` : ''}</option>
-                      ))}
-                  </select>
+                  <button type="submit" className="py-2 px-4 bg-brand-600 hover:bg-brand-500 text-white rounded-xl transition-colors font-bold text-xs cursor-pointer">
+                    + Dodaj Maszynę
+                  </button>
                 </div>
-                <button type="submit" className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-colors font-bold text-xs">
-                  + Dodaj Maszynę
-                </button>
               </form>
             )}
 
             <ul className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
               {machines.length === 0 ? <li className="text-slate-500 italic text-xs">Brak maszyn</li> : null}
-              {machines.map(machine => {
-                const area = areas.find(a => a.id === machine.areaId);
+              {machines.map(m => {
+                const parentArea = areas.find(a => a.id === m.areaId);
                 return (
-                  <li key={machine.id} className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex justify-between items-center gap-2">
+                  <li key={m.id} className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex justify-between items-center gap-2">
                     <div className="flex flex-col gap-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate">{machine.name}</span>
-                        {machine.shortCode && (
-                          <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-extrabold rounded-md text-[10px] border border-emerald-200 dark:border-emerald-800">
-                            {machine.shortCode}
+                        <span className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate">{m.name}</span>
+                        {m.shortCode && (
+                          <span className="px-2 py-0.5 bg-brand-100 dark:bg-brand-950 text-brand-800 dark:text-brand-300 font-extrabold font-mono rounded-md text-[10px] border border-brand-200 dark:border-brand-800">
+                            {m.shortCode}
                           </span>
                         )}
                       </div>
                       <span className="text-[10px] text-slate-500 font-medium">
-                        Rejon: <strong className="text-slate-700 dark:text-slate-300">{area?.name || 'Nieznany'}</strong>
+                        📍 Rejon: <strong>{parentArea?.name || 'Brak'}</strong>
                       </span>
                     </div>
 
@@ -323,56 +414,45 @@ export default function StructurePage() {
                           setQrModalData({
                             isOpen: true,
                             item: {
-                              id: machine.id,
-                              title: machine.name,
-                              subtitle: `Rejon: ${area?.name || 'Brak'}`,
-                              code: `MACHINE:${machine.id}`,
-                              shortCode: machine.shortCode,
+                              id: m.id,
+                              title: m.name,
+                              subtitle: `Rejon: ${parentArea?.name || 'Brak'}`,
+                              code: `MACHINE:${m.id}`,
+                              shortCode: m.shortCode,
                               typeLabel: 'Maszyna',
                             },
                           })
                         }
-                        className="p-2 text-slate-600 hover:text-emerald-600 bg-white dark:bg-slate-800 hover:bg-emerald-50 border border-slate-200 dark:border-slate-700 rounded-xl transition-all shadow-sm"
+                        className="p-2 text-slate-600 hover:text-brand-600 bg-white dark:bg-slate-800 hover:bg-brand-50 border border-slate-200 dark:border-slate-700 rounded-xl transition-all shadow-sm cursor-pointer"
                         title="Generuj i pobierz etykietę QR (7.5x7.5 cm)"
                       >
                         📱
                       </button>
 
-                      {/* Edytuj */}
-                      {isAdmin && (
+                      {/* Edytuj (Tylko dla Kierowników/Admina) */}
+                      {canEditStructure && (
                         <button
                           onClick={() =>
                             setEditingItem({
-                              id: machine.id,
+                              id: m.id,
                               type: 'MACHINE',
-                              name: machine.name,
-                              shortCode: machine.shortCode || '',
-                              areaId: machine.areaId,
+                              name: m.name,
+                              shortCode: m.shortCode || '',
+                              areaId: m.areaId,
                             })
                           }
-                          className="p-2 text-slate-600 hover:text-blue-600 bg-white dark:bg-slate-800 hover:bg-blue-50 border border-slate-200 dark:border-slate-700 rounded-xl transition-all shadow-sm"
-                          title="Edytuj nazwę, synonim i rejon"
+                          className="p-2 text-slate-600 hover:text-blue-600 bg-white dark:bg-slate-800 hover:bg-blue-50 border border-slate-200 dark:border-slate-700 rounded-xl transition-all shadow-sm cursor-pointer"
+                          title="Edytuj nazwę i synonim"
                         >
                           ✏️
                         </button>
                       )}
 
-                      {/* Usuń */}
-                      {isAdmin && (
+                      {/* Usuń (Tylko dla Kierowników/Admina) */}
+                      {canEditStructure && (
                         <button
-                          onClick={() => {
-                            showConfirm({
-                              title: 'Usuwanie Maszyny',
-                              message: `Czy na pewno chcesz usunąć maszynę "${machine.name}"?`,
-                              confirmText: 'Usuń maszynę',
-                              isDanger: true,
-                              onConfirm: async () => {
-                                await deleteMachine(machine.id);
-                                showToast('Maszyna usunięta', 'success');
-                              }
-                            });
-                          }}
-                          className="p-2 text-slate-400 hover:text-red-600 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/30 border border-slate-200 dark:border-slate-700 rounded-xl transition-all shadow-sm"
+                          onClick={() => handleDeleteMachine(m.id, m.name)}
+                          className="p-2 text-slate-600 hover:text-red-600 bg-white dark:bg-slate-800 hover:bg-red-50 border border-slate-200 dark:border-slate-700 rounded-xl transition-all shadow-sm cursor-pointer"
                           title="Usuń maszynę"
                         >
                           🗑️
@@ -387,137 +467,20 @@ export default function StructurePage() {
         </section>
       </div>
 
-      {/* Modal Edycji Nazwy i Synonimu */}
-      {editingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <form
-            onSubmit={handleSaveEdit}
-            className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 space-y-4"
-          >
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                <span>✏️</span> Edycja: {editingItem.type === 'AREA' ? 'Rejon' : 'Maszyna'}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setEditingItem(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold"
-              >
-                ✕
-              </button>
-            </div>
+      {/* Modal Wyboru Kodów QR */}
+      <QrCodeSelectionModal
+        isOpen={isSelectionModalOpen}
+        onClose={() => setIsSelectionModalOpen(false)}
+        items={qrSelectableItems}
+        onConfirmSelection={(selectedItems) => {
+          setQrModalData({
+            isOpen: true,
+            items: selectedItems,
+          });
+        }}
+      />
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">
-                Nazwa {editingItem.type === 'AREA' ? 'Rejonu' : 'Maszyny'}
-              </label>
-              <input
-                type="text"
-                value={editingItem.name}
-                onChange={e => setEditingItem({ ...editingItem, name: e.target.value })}
-                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                placeholder="np. Mieszalnik Duży"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">
-                Synonim / Kod skrócony (np. MID01, MIM01, MIS01)
-              </label>
-              <input
-                type="text"
-                value={editingItem.shortCode}
-                onChange={e => setEditingItem({ ...editingItem, shortCode: e.target.value.toUpperCase() })}
-                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none uppercase font-bold tracking-wider"
-                placeholder="np. MID01"
-              />
-              <p className="text-[10px] text-slate-400 mt-1">
-                Synonim będzie drukowany na etykiecie QR oraz ułatwi szybkie wyszukiwanie.
-              </p>
-            </div>
-
-            {editingItem.type === 'MACHINE' && (
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">
-                  Przypisany Rejon
-                </label>
-                <select
-                  value={editingItem.areaId || ''}
-                  onChange={e => setEditingItem({ ...editingItem, areaId: e.target.value })}
-                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  {areas
-                    .filter(area => !area.name.toLowerCase().includes('magazyn'))
-                    .map(area => (
-                      <option key={area.id} value={area.id}>
-                        {area.name} {area.shortCode ? `(${area.shortCode})` : ''}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="submit"
-                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl text-xs transition-colors"
-              >
-                Zapisz Zmiany
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditingItem(null)}
-                className="py-2.5 px-4 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-2xl text-xs transition-colors"
-              >
-                Anuluj
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Okno Modularne wyboru zakresu kodów QR */}
-      {isSelectionModalOpen && (
-        <QrCodeSelectionModal
-          isOpen={isSelectionModalOpen}
-          onClose={() => setIsSelectionModalOpen(false)}
-          availableAreas={areas.map((a) => ({ id: a.id, name: a.name }))}
-          items={[
-            ...areas.map((a) => ({
-              id: a.id,
-              title: a.name,
-              subtitle: 'Rejon Fabryczny',
-              code: `AREA:${a.id}`,
-              shortCode: a.shortCode,
-              typeLabel: 'Rejon' as const,
-              areaId: a.id,
-              parentAreaName: a.name,
-            })),
-            ...machines.map((m) => {
-              const area = areas.find((a) => a.id === m.areaId);
-              return {
-                id: m.id,
-                title: m.name,
-                subtitle: `Rejon: ${area?.name || 'Brak'}`,
-                code: `MACHINE:${m.id}`,
-                shortCode: m.shortCode,
-                typeLabel: 'Maszyna' as const,
-                areaId: m.areaId,
-                parentAreaName: area?.name || null,
-              };
-            }),
-          ]}
-          onConfirmSelection={(selectedLabels, action) => {
-            setQrModalData({
-              isOpen: true,
-              items: selectedLabels,
-            });
-          }}
-        />
-      )}
-
-      {/* Modal etykiety QR */}
+      {/* Modal Generowania Etykiety QR (Dla 1 przedmiotu lub całej siatki A4 3x4) */}
       {qrModalData && (
         <QrCodeLabelModal
           isOpen={qrModalData.isOpen}
@@ -525,6 +488,82 @@ export default function StructurePage() {
           item={qrModalData.item}
           items={qrModalData.items}
         />
+      )}
+
+      {/* Modal Edycji Maszyny / Rejonu */}
+      {editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="flex items-center justify-between border-b pb-3 border-slate-100 dark:border-slate-800">
+              <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">
+                ✏️ Edycja {editingItem.type === 'AREA' ? 'Rejonu' : 'Maszyny'}
+              </h3>
+              <button
+                onClick={() => setEditingItem(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4 text-xs font-bold">
+              <div>
+                <label className="block text-slate-500 mb-1">Nazwa</label>
+                <input
+                  type="text"
+                  value={editingItem.name}
+                  onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-brand-500 outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-500 mb-1">Synonim / Skrót Kodów QR</label>
+                <input
+                  type="text"
+                  value={editingItem.shortCode}
+                  onChange={(e) => setEditingItem({ ...editingItem, shortCode: e.target.value.toUpperCase() })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono focus:ring-2 focus:ring-brand-500 outline-none uppercase"
+                  placeholder="np. HPA lub PAK01"
+                />
+              </div>
+
+              {editingItem.type === 'MACHINE' && (
+                <div>
+                  <label className="block text-slate-500 mb-1">Przypisany Rejon</label>
+                  <select
+                    value={editingItem.areaId || ''}
+                    onChange={(e) => setEditingItem({ ...editingItem, areaId: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-brand-500 outline-none cursor-pointer"
+                  >
+                    {areas.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingItem(null)}
+                  className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-extrabold hover:bg-slate-200 cursor-pointer"
+                >
+                  Anuluj
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-extrabold shadow-md cursor-pointer"
+                >
+                  Zapisz Zmiany
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

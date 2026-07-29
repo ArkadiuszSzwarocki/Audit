@@ -30,14 +30,34 @@ interface LeaveRequestItem {
 const TYPE_LABELS: Record<string, { label: string; bg: string; text: string }> = {
   WYPOCZYNKOWY: { label: 'Urlop', bg: 'bg-emerald-500', text: 'text-white' },
   VACATION: { label: 'Urlop', bg: 'bg-emerald-500', text: 'text-white' },
-  CHOROBOWY: { label: 'L4', bg: 'bg-rose-500', text: 'text-white' },
-  SICK_LEAVE: { label: 'L4', bg: 'bg-rose-500', text: 'text-white' },
   NA_ZADANIE: { label: 'Żądanie', bg: 'bg-purple-500', text: 'text-white' },
   ON_DEMAND: { label: 'Żądanie', bg: 'bg-purple-500', text: 'text-white' },
   BEZPLATNY: { label: 'Bezpłatny', bg: 'bg-amber-500', text: 'text-white' },
   UNPAID: { label: 'Bezpłatny', bg: 'bg-amber-500', text: 'text-white' },
-  SPECJALNY: { label: 'Specjalny', bg: 'bg-cyan-500', text: 'text-white' },
-  SPECIAL: { label: 'Specjalny', bg: 'bg-cyan-500', text: 'text-white' },
+  CHOROBOWY: { label: 'L4', bg: 'bg-rose-500', text: 'text-white' },
+  SICK_LEAVE: { label: 'L4', bg: 'bg-rose-500', text: 'text-white' },
+  MACIERZYNSKI: { label: 'Macierzyński', bg: 'bg-pink-500', text: 'text-white' },
+  MATERNITY: { label: 'Macierzyński', bg: 'bg-pink-500', text: 'text-white' },
+  RODZICIELSKI: { label: 'Rodzicielski', bg: 'bg-rose-600', text: 'text-white' },
+  PARENTAL: { label: 'Rodzicielski', bg: 'bg-rose-600', text: 'text-white' },
+  OJCOWSKI: { label: 'Ojcowski', bg: 'bg-blue-600', text: 'text-white' },
+  PATERNITY: { label: 'Ojcowski', bg: 'bg-blue-600', text: 'text-white' },
+  WYCHOAWNCZY: { label: 'Wychowawczy', bg: 'bg-purple-600', text: 'text-white' },
+  CHILD_CARE: { label: 'Wychowawczy', bg: 'bg-purple-600', text: 'text-white' },
+  OPIEKA_ART188: { label: 'Opieka 188', bg: 'bg-cyan-600', text: 'text-white' },
+  CHILD_CARE_ART188: { label: 'Opieka 188', bg: 'bg-cyan-600', text: 'text-white' },
+  SILA_WYZSZA: { label: 'Siła Wyższa', bg: 'bg-yellow-600', text: 'text-white' },
+  FORCE_MAJEURE: { label: 'Siła Wyższa', bg: 'bg-yellow-600', text: 'text-white' },
+  OPIEKUNCZY: { label: 'Opiekuńczy', bg: 'bg-indigo-600', text: 'text-white' },
+  CARER_LEAVE: { label: 'Opiekuńczy', bg: 'bg-indigo-600', text: 'text-white' },
+  OKOLICZNOSCIOWY: { label: 'Okolicznościowy', bg: 'bg-teal-600', text: 'text-white' },
+  SPECIAL: { label: 'Okolicznościowy', bg: 'bg-teal-600', text: 'text-white' },
+  SZKOLENIOWY: { label: 'Szkoleniowy', bg: 'bg-sky-600', text: 'text-white' },
+  TRAINING: { label: 'Szkoleniowy', bg: 'bg-sky-600', text: 'text-white' },
+  KRWIODASTWO: { label: 'Krew/Szpik', bg: 'bg-red-700', text: 'text-white' },
+  BLOOD_DONOR: { label: 'Krew/Szpik', bg: 'bg-red-700', text: 'text-white' },
+  REHABILITACYJNY: { label: 'Rehabilitacyjny', bg: 'bg-emerald-700', text: 'text-white' },
+  REHABILITATION: { label: 'Rehabilitacyjny', bg: 'bg-emerald-700', text: 'text-white' },
 };
 
 export function GlobalTeamLeaveCalendar() {
@@ -66,7 +86,7 @@ export function GlobalTeamLeaveCalendar() {
   const [allUsers, setAllUsers] = useState<LeaveUser[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'APPROVED' | 'PENDING'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
 
   // Stan modala podglądu / moderacji wniosku
   const [selectedRequest, setSelectedRequest] = useState<LeaveRequestItem | null>(null);
@@ -163,6 +183,8 @@ export function GlobalTeamLeaveCalendar() {
   const getLeaveForUserAndDay = (userId: string, dateStr: string) => {
     return leaveRequests.find((req) => {
       if (req.userId !== userId) return false;
+      // Odrzucone wnioski (REJECTED) ukrywamy z grafiku ogólnego (chyba że wybrano filtr Odrzucone)
+      if (req.status === 'REJECTED' && statusFilter !== 'REJECTED') return false;
       if (statusFilter !== 'ALL' && req.status !== statusFilter) return false;
 
       const start = req.startDate.split('T')[0];

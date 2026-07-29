@@ -68,7 +68,7 @@ async function getSessionUser(req: NextRequest) {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } | Promise<{ id: string }> }
 ) {
   try {
     const sessionUser = await getSessionUser(req);
@@ -76,7 +76,13 @@ export async function PATCH(
       return NextResponse.json({ error: 'Niezalogowany' }, { status: 401 });
     }
 
-    const { id } = params;
+    const rawParams = await context.params;
+    const id = rawParams?.id;
+
+    if (!id || id === 'undefined' || id === 'null') {
+      return NextResponse.json({ error: 'Brak ID wniosku' }, { status: 400 });
+    }
+
     const body = await req.json();
     const { status, approverNote } = body;
 

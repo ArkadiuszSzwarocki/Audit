@@ -2,12 +2,18 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/config/db';
 import bcrypt from 'bcryptjs';
 import { getAuthSession } from '@/lib/auth';
+import { checkRolePermission } from '@/lib/permissions';
 
 export async function GET() {
   try {
     const session = await getAuthSession();
     if (!session) {
       return NextResponse.json({ error: 'Brak autoryzacji' }, { status: 401 });
+    }
+
+    const isAllowedToView = session.isAdmin || checkRolePermission(session.role, 'users.view');
+    if (!isAllowedToView) {
+      return NextResponse.json({ error: 'Brak uprawnień do przeglądania użytkowników' }, { status: 403 });
     }
 
     const users = await prisma.user.findMany({
@@ -50,8 +56,13 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await getAuthSession();
-  if (!session || !session.isAdmin) {
-    return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 });
+  if (!session) {
+    return NextResponse.json({ error: 'Brak autoryzacji' }, { status: 401 });
+  }
+
+  const isAllowedToCreate = session.isAdmin || checkRolePermission(session.role, 'users.create');
+  if (!isAllowedToCreate) {
+    return NextResponse.json({ error: 'Brak uprawnień do dodawania użytkowników. Sprawdź ustawienia w macierzy uprawnień.' }, { status: 403 });
   }
 
   try {
@@ -98,9 +109,9 @@ export async function POST(request: Request) {
     const passwordHash = await bcrypt.hash(password, 10);
     const newUser = await prisma.user.create({
       data: {
-        login,
-        name,
-        email: email?.trim() || null,
+        login: login.trim(),
+        name: name.trim(),
+        email: email ? email.trim() : null,
         passwordHash,
         role: role || 'OPERATOR',
         bhpTrainingDueDate: bhpTrainingDueDate ? new Date(bhpTrainingDueDate) : null,
@@ -126,11 +137,16 @@ export async function POST(request: Request) {
         notifyKaizen: true,
         notifyAudits: true,
         isKaizenCommittee: true,
+        createdAt: true
       }
     });
 
     return NextResponse.json(newUser, { status: 201 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Error creating user:', error);
+    return NextResponse.json(
+      { error: 'Błąd podczas tworzenia użytkownika', details: error.message },
+      { status: 500 }
+    );
   }
 }

@@ -72,15 +72,23 @@ export default function UsersPage() {
 
   const [availableRoles, setAvailableRoles] = useState<{ id: string; name: string }[]>([]);
 
+  const isAllowedUserManagement = useMemo(() => {
+    if (!user) return false;
+    const role = (user.role || '').toUpperCase();
+    return ['ADMIN', 'ADMINISTRATOR', 'ZARZAD', 'ZARZĄD', 'BOARD', 'KIEROWNIK', 'MANAGER', 'DYREKTOR', 'DIRECTOR'].includes(role);
+  }, [user]);
+
   useEffect(() => {
-    if (!authLoading && !isAdmin) {
-      router.push('/');
-    } else if (isAdmin) {
-      fetchUsers();
-      fetchRoles();
-      fetchAreas();
+    if (!authLoading && user) {
+      if (!isAllowedUserManagement) {
+        router.push('/');
+      } else {
+        fetchUsers();
+        fetchRoles();
+        fetchAreas();
+      }
     }
-  }, [isAdmin, authLoading, router]);
+  }, [user, isAllowedUserManagement, authLoading, router]);
 
   const fetchAreas = async () => {
     try {
@@ -131,25 +139,6 @@ export default function UsersPage() {
 
   const handleNameChange = (val: string) => {
     setName(val);
-    const normalized = val
-      .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/ł/g, 'l')
-      .replace(/ń/g, 'n')
-      .replace(/ć/g, 'c')
-      .replace(/ś/g, 's')
-      .replace(/ż|ź/g, 'z')
-      .replace(/ą/g, 'a')
-      .replace(/ę/g, 'e')
-      .replace(/ó/g, 'o');
-    const parts = normalized.split(/\s+/);
-    if (parts.length >= 2 && parts[0] && parts[1]) {
-      const suggestedUser = `${parts[0]}.${parts[parts.length - 1]}`;
-      setLogin(prev => (!prev || prev.includes('.') ? suggestedUser : prev));
-      setEmail(prev => (!prev || prev.endsWith(DEFAULT_EMAIL_DOMAIN) ? `${suggestedUser}${DEFAULT_EMAIL_DOMAIN}` : prev));
-    }
   };
 
   const handleAddUser = async (e: React.FormEvent) => {
@@ -306,9 +295,12 @@ export default function UsersPage() {
   };
 
   const handleDelete = (id: string, userName: string, userRole: string) => {
-    const isZarzadRole = userRole.toUpperCase() === 'ZARZAD' || userRole.toUpperCase() === 'ZARZĄD';
-    if (isZarzadRole && user?.role !== 'ZARZAD' && user?.role !== 'Zarząd') {
-      showToast('Niedozwolona operacja! Rola Zarząd posiada nadrzędną władzę – Administrator nie może jej usuwać.', 'error');
+    const isZarzadRole = userRole.toUpperCase() === 'ZARZAD' || userRole.toUpperCase() === 'ZARZĄD' || userRole.toUpperCase() === 'BOARD';
+    const isMasterAdmin = (user?.login || '').toLowerCase() === 'masteradmin' || (user?.name || '').toLowerCase().includes('masteradmin') || (user?.role || '').toUpperCase() === 'ADMIN';
+    const isZarzadUser = (user?.role || '').toUpperCase() === 'ZARZAD' || (user?.role || '').toUpperCase() === 'ZARZĄD' || (user?.role || '').toUpperCase() === 'BOARD';
+
+    if (isZarzadRole && !isZarzadUser && !isMasterAdmin) {
+      showToast('Niedozwolona operacja! Rola Zarząd posiada nadrzędną władzę – tylko Zarząd lub Master Admin może ją usuwać.', 'error');
       return;
     }
 
@@ -386,7 +378,7 @@ export default function UsersPage() {
   if (authLoading || loading) {
     return <div className="p-8 text-center text-slate-500 font-medium animate-pulse">Ładowanie bazy użytkowników...</div>;
   }
-  if (!isAdmin) return null;
+  if (!isAllowedUserManagement) return null;
 
   return (
     <div className="w-full space-y-6 animate-in fade-in duration-300 pb-12">
@@ -405,7 +397,15 @@ export default function UsersPage() {
         </div>
 
         <button
-          onClick={() => setIsAdding(!isAdding)}
+          onClick={() => {
+            if (!isAdding) {
+              setLogin('');
+              setName('');
+              setEmail('');
+              setPassword('');
+            }
+            setIsAdding(!isAdding);
+          }}
           className="px-5 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-2xl text-sm font-bold transition-all shadow-lg hover:shadow-brand-600/30 flex items-center gap-2 self-start md:self-auto cursor-pointer touch-manipulation min-h-[44px]"
         >
           {isAdding ? (
@@ -450,14 +450,16 @@ export default function UsersPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                  Login do Systemu *
+                  Login do Systemu (Nick) *
                 </label>
                 <input
                   type="text"
+                  name="new_user_login_field"
+                  autoComplete="off"
                   value={login}
                   onChange={e => setLogin(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono text-sm focus:ring-2 focus:ring-brand-500 outline-none"
-                  placeholder="np. jan.kowalski"
+                  placeholder="Wpisz nick / login (puste pole)"
                   required
                 />
               </div>
@@ -496,10 +498,12 @@ export default function UsersPage() {
                 </label>
                 <input
                   type="password"
+                  name="new_user_password_field"
+                  autoComplete="new-password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium focus:ring-2 focus:ring-brand-500 outline-none"
-                  placeholder="••••••••"
+                  placeholder="Wpisz hasło (puste pole)"
                   required
                 />
               </div>

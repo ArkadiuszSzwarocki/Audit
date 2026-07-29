@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, use } from 'react';
+import React, { useEffect, useState, useMemo, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/context/ToastContext';
@@ -39,6 +39,12 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
   const { showToast, showConfirm } = useToast();
   const { users: allUsers, fetchUsers } = useUsers();
 
+  const canManageStructure = useMemo(() => {
+    if (!user) return false;
+    const role = (user.role || '').toUpperCase();
+    return ['ADMIN', 'ADMINISTRATOR', 'ZARZAD', 'ZARZĄD', 'BOARD', 'KIEROWNIK', 'MANAGER', 'DYREKTOR', 'DIRECTOR'].includes(role);
+  }, [user]);
+
   const [data, setData] = useState<DepartmentTreeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +75,7 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
   // Create new user & assign form state
   const [newUserName, setNewUserName] = useState('');
   const [newUserLogin, setNewUserLogin] = useState('');
-  const [newUserPassword, setNewUserPassword] = useState('123456');
+  const [newUserPassword, setNewUserPassword] = useState('');
 
   const fetchTreeData = async () => {
     setLoading(true);
@@ -98,6 +104,10 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
   }, [user, id]);
 
   const openAssignModalForSection = (deptId: string, deptName: string) => {
+    if (!canManageStructure) {
+      showToast('Opcja wyłączona w trybie podglądu (Operator)', 'error');
+      return;
+    }
     setTargetDeptId(deptId);
     setTargetDeptName(deptName);
     setSelectedUserId('');
@@ -109,6 +119,11 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
 
   const handleCreateSubPath = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageStructure) {
+      showToast('Brak uprawnień. Operatorzy posiadają dostęp wyłącznie do podglądu.', 'error');
+      return;
+    }
+
     if (!subName.trim()) {
       showToast('Wpisz nazwę nowej pod-ścieżki/działu', 'error');
       return;
@@ -124,110 +139,140 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
           data: {
             name: subName.trim(),
             description: subDesc.trim() || undefined,
-            shiftMode: subShiftMode,
+            shiftMode: Number(subShiftMode),
             parentDepartmentId: id,
           },
         }),
       });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Nie udało się utworzyć pod-ścieżki');
-      }
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Nie udało się utworzyć pod-ścieżki');
 
-      showToast('✅ Dodano nową pod-ścieżkę w drzewie!', 'success');
+      showToast(`🌿 Nowa pod-ścieżka "${subName.trim()}" została dodana!`, 'success');
+      setShowAddSubModal(false);
       setSubName('');
       setSubDesc('');
-      setShowAddSubModal(false);
       await fetchTreeData();
     } catch (err: any) {
-      showToast(`❌ ${err.message}`, 'error');
+      showToast(err.message, 'error');
     } finally {
       setSubSubmitting(false);
     }
   };
 
-  const handleAssignEmployee = async (e: React.FormEvent) => {
+  const handleAssignUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageStructure) {
+      showToast('Brak uprawnień. Operatorzy posiadają dostęp wyłącznie do podglądu.', 'error');
+      return;
+    }
+
+    if (!selectedUserId) {
+      showToast('Wybierz pracownika z listy', 'error');
+      return;
+    }
+
     setAssignSubmitting(true);
-
     try {
-      if (assignMode === 'PICK_EXISTING') {
-        if (!selectedUserId) {
-          showToast('Wybierz pracownika z bazy danych', 'error');
-          setAssignSubmitting(false);
-          return;
-        }
+      const res = await fetch('/api/organization', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'assign-employee',
+          data: {
+            departmentId: targetDeptId,
+            userId: selectedUserId,
+            roleName: selectedRole,
+            isHead,
+          },
+        }),
+      });
 
-        const res = await fetch('/api/organization', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'assign-employee',
-            data: {
-              userId: selectedUserId,
-              departmentId: targetDeptId,
-              roleName: selectedRole || undefined,
-              isHead: isHead,
-            },
-          }),
-        });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Nie udało się przypisać pracownika');
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'Nie udało się przypisać pracownika');
-        }
-
-        showToast(`✅ Przypisano pracownika do sekcji: ${targetDeptName}!`, 'success');
-      } else {
-        // CREATE_NEW
-        if (!newUserName.trim() || !newUserLogin.trim()) {
-          showToast('Wpisz imię i nazwisko oraz login nowego pracownika', 'error');
-          setAssignSubmitting(false);
-          return;
-        }
-
-        const res = await fetch('/api/organization', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'create-and-assign-employee',
-            data: {
-              name: newUserName.trim(),
-              login: newUserLogin.trim().toLowerCase(),
-              password: newUserPassword || '123456',
-              roleName: selectedRole || 'OPERATOR',
-              departmentId: targetDeptId,
-              isHead: isHead,
-            },
-          }),
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'Nie udało się utworzyć pracownika');
-        }
-
-        showToast(`✅ Utworzono i przypisano nowego pracownika "${newUserName}" do sekcji!`, 'success');
-        setNewUserName('');
-        setNewUserLogin('');
-      }
-
+      showToast('👤 Pracownik został pomyślnie przypisany do ścieżki!', 'success');
       setShowAssignModal(false);
       await fetchTreeData();
       await fetchUsers();
     } catch (err: any) {
-      showToast(`❌ ${err.message}`, 'error');
+      showToast(err.message, 'error');
     } finally {
       setAssignSubmitting(false);
     }
   };
 
-  const handleUnassignEmployee = (userId: string, userName: string) => {
+  const handleCreateNewUserAndAssign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canManageStructure) {
+      showToast('Brak uprawnień. Operatorzy posiadają dostęp wyłącznie do podglądu.', 'error');
+      return;
+    }
+
+    if (!newUserName.trim() || !newUserLogin.trim() || !newUserPassword.trim()) {
+      showToast('Wypełnij imię, login i hasło dla nowego pracownika', 'error');
+      return;
+    }
+
+    setAssignSubmitting(true);
+    try {
+      const resUser = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newUserName.trim(),
+          login: newUserLogin.trim(),
+          password: newUserPassword.trim(),
+          role: selectedRole,
+        }),
+      });
+
+      const jsonUser = await resUser.json();
+      if (!resUser.ok) throw new Error(jsonUser.error || 'Nie udało się zarejestrować nowego pracownika');
+
+      const createdUserId = jsonUser.id;
+
+      const resAssign = await fetch('/api/organization', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'assign-employee',
+          data: {
+            departmentId: targetDeptId,
+            userId: createdUserId,
+            roleName: selectedRole,
+            isHead,
+          },
+        }),
+      });
+
+      const jsonAssign = await resAssign.json();
+      if (!resAssign.ok) throw new Error(jsonAssign.error || 'Utworzono pracownika, ale błąd przy przypisywaniu');
+
+      showToast(`👤 Nowy pracownik "${newUserName.trim()}" zarejestrowany i przypisany!`, 'success');
+      setShowAssignModal(false);
+      setNewUserName('');
+      setNewUserLogin('');
+      setNewUserPassword('');
+      await fetchTreeData();
+      await fetchUsers();
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      setAssignSubmitting(false);
+    }
+  };
+
+  const handleUnassignEmployee = async (userId: string, userName: string) => {
+    if (!canManageStructure) {
+      showToast('Opcja wyłączona w trybie podglądu (Operator)', 'error');
+      return;
+    }
+
     showConfirm({
-      title: 'Odpinanie z tej ścieżki',
-      message: `Czy na pewno chcesz odpiąć pracownika "${userName}" z wyznaczonej sekcji?`,
-      confirmText: 'Odepnij',
+      title: 'Odpięcie pracownika ze ścieżki',
+      message: `Czy na pewno chcesz odpiąć pracownika "${userName}" ze ścieżki "${data?.department.name}"?`,
+      confirmText: 'Odepnij pracownika',
       isDanger: true,
       onConfirm: async () => {
         try {
@@ -239,12 +284,42 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
               data: { userId },
             }),
           });
-          if (res.ok) {
-            showToast('✅ Odpięto pracownika ze ścieżki', 'success');
-            await fetchTreeData();
-          }
-        } catch (err) {
-          showToast('❌ Błąd podczas odpinania', 'error');
+          if (!res.ok) throw new Error('Nie udało się odpiąć pracownika');
+          showToast('Pracownik został odpięty ze ścieżki', 'success');
+          await fetchTreeData();
+        } catch (err: any) {
+          showToast(err.message, 'error');
+        }
+      },
+    });
+  };
+
+  const handleDeleteSubDept = async (subId: string, subName: string) => {
+    if (!canManageStructure) {
+      showToast('Opcja wyłączona w trybie podglądu (Operator)', 'error');
+      return;
+    }
+
+    showConfirm({
+      title: 'Usuwanie Pod-ścieżki',
+      message: `Czy na pewno chcesz usunąć pod-ścieżkę "${subName}"?`,
+      confirmText: 'Usuń pod-ścieżkę',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const res = await fetch('/api/organization', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'delete-department',
+              data: { departmentId: subId },
+            }),
+          });
+          if (!res.ok) throw new Error('Nie udało się usunąć pod-ścieżki');
+          showToast('Pod-ścieżka została usunięta', 'success');
+          await fetchTreeData();
+        } catch (err: any) {
+          showToast(err.message, 'error');
         }
       },
     });
@@ -312,20 +387,34 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
             >
               ← Powrót do Listy
             </button>
-            <button
-              onClick={() => setShowAddSubModal(true)}
-              className="px-4 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-extrabold rounded-2xl text-xs transition-all shadow-lg cursor-pointer"
-            >
-              ➕ Dodaj Pod-Ścieżkę
-            </button>
-            <button
-              onClick={() => openAssignModalForSection(department.id, department.name)}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-2xl text-xs transition-all shadow-lg cursor-pointer"
-            >
-              👤 Przypisz Pracownika
-            </button>
+            {canManageStructure && (
+              <>
+                <button
+                  onClick={() => setShowAddSubModal(true)}
+                  className="px-4 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-extrabold rounded-2xl text-xs transition-all shadow-lg cursor-pointer"
+                >
+                  ➕ Dodaj Pod-Ścieżkę
+                </button>
+                <button
+                  onClick={() => openAssignModalForSection(department.id, department.name)}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-2xl text-xs transition-all shadow-lg cursor-pointer"
+                >
+                  👤 Przypisz Pracownika
+                </button>
+              </>
+            )}
           </div>
         </div>
+
+        {/* Baner informacyjny dla Operatora (Tryb Read-Only) */}
+        {!canManageStructure && (
+          <div className="p-4 bg-slate-900 border border-blue-500/40 rounded-2xl text-xs text-blue-200 font-semibold flex items-center gap-3 w-full">
+            <span className="text-xl">ℹ️</span>
+            <div>
+              <strong>Tryb Podglądu Ścieżki Zarządzania (Read-Only):</strong> Jesteś zalogowany jako Operator. Posiadasz pełny podgląd pionu zarządczego, kierowników i przydzielonych zespołów. Modyfikacja składu osobowego i dodawanie pod-ścieżek jest zarezerwowane dla Kierowników i Administratorów.
+            </div>
+          </div>
+        )}
 
         {/* VERTIKALNE DRZEWO ZARZĄDZANIA (Od Zarządu do Operatora) */}
         <div className="space-y-6 flex flex-col items-center">
@@ -343,12 +432,14 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
                   <p className="text-slate-400 text-xs font-semibold">Nadrzędny poziom decyzyjny fabryki</p>
                 </div>
               </div>
-              <button
-                onClick={() => openAssignModalForSection(department.id, 'Zarząd & Dyrekcja')}
-                className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition-all cursor-pointer"
-              >
-                + Przypisz do Zarządu
-              </button>
+              {canManageStructure && (
+                <button
+                  onClick={() => openAssignModalForSection(department.id, 'Zarząd & Dyrekcja')}
+                  className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  + Przypisz do Zarządu
+                </button>
+              )}
             </div>
 
             {boardUsers.length === 0 ? (
@@ -394,12 +485,14 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
                       <p className="text-xs text-slate-400">{anc.description || 'Departament nadrzędny w strukturze'}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => openAssignModalForSection(anc.id, anc.name)}
-                    className="px-3 py-1 bg-brand-950 hover:bg-brand-900 text-brand-300 border border-brand-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                  >
-                    + Przypisz do {anc.name}
-                  </button>
+                  {canManageStructure && (
+                    <button
+                      onClick={() => openAssignModalForSection(anc.id, anc.name)}
+                      className="px-3 py-1 bg-brand-950 hover:bg-brand-900 text-brand-300 border border-brand-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    >
+                      + Przypisz do {anc.name}
+                    </button>
+                  )}
                 </div>
                 {anc.headUser && (
                   <div className="p-2.5 bg-brand-950/40 border border-brand-800 rounded-xl text-xs text-brand-200 font-bold flex items-center gap-2">
@@ -442,12 +535,14 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
                     🏭 Tryb 3-zmianowy
                   </span>
                 )}
-                <button
-                  onClick={() => openAssignModalForSection(department.id, department.name)}
-                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl text-xs shadow-md transition-all cursor-pointer"
-                >
-                  + Przypisz Pracownika
-                </button>
+                {canManageStructure && (
+                  <button
+                    onClick={() => openAssignModalForSection(department.id, department.name)}
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl text-xs shadow-md transition-all cursor-pointer"
+                  >
+                    + Przypisz Pracownika
+                  </button>
+                )}
               </div>
             </div>
 
@@ -495,17 +590,19 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
               <h3 className="text-base font-black text-emerald-400 flex items-center gap-2">
                 <span>🌿</span> Pod-Ścieżki i Sekcje w tym Dziale ({department.childDepartments.length})
               </h3>
-              <button
-                onClick={() => setShowAddSubModal(true)}
-                className="px-3 py-1 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
-              >
-                + Nowa Pod-Ścieżka
-              </button>
+              {canManageStructure && (
+                <button
+                  onClick={() => setShowAddSubModal(true)}
+                  className="px-3 py-1 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  + Nowa Pod-Ścieżka
+                </button>
+              )}
             </div>
 
             {department.childDepartments.length === 0 ? (
               <p className="text-xs text-slate-500 italic py-2">
-                Brak pod-ścieżek (np. Linii 1, Linii 2, Sekcji). Kliknij "Nowa Pod-Ścieżka", aby rozbudować drzewo.
+                Brak pod-ścieżek (np. Linii 1, Linii 2, Sekcji).
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -521,13 +618,15 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
                       >
                         🌿 {child.name}
                       </span>
-                      <button
-                        onClick={() => openAssignModalForSection(child.id, child.name)}
-                        className="px-2 py-0.5 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 rounded-lg text-[10px] font-bold"
-                        title="Przypisz pracownika bezpośrednio do tej pod-ścieżki"
-                      >
-                        + Przypisz
-                      </button>
+                      {canManageStructure && (
+                        <button
+                          onClick={() => openAssignModalForSection(child.id, child.name)}
+                          className="px-2 py-0.5 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 rounded-lg text-[10px] font-bold cursor-pointer"
+                          title="Przypisz pracownika bezpośrednio do tej pod-ścieżki"
+                        >
+                          + Przypisz
+                        </button>
+                      )}
                     </div>
 
                     <div className="text-[11px] text-slate-400">
@@ -560,17 +659,19 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
               <h3 className="text-base font-black text-blue-400 flex items-center gap-2">
                 <span>👥</span> Pracownicy i Stanowiska w tym Dziale ({department.users.length})
               </h3>
-              <button
-                onClick={() => openAssignModalForSection(department.id, department.name)}
-                className="px-3 py-1 bg-blue-950 hover:bg-blue-900 text-blue-300 border border-blue-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
-              >
-                + Przypisz Pracownika
-              </button>
+              {canManageStructure && (
+                <button
+                  onClick={() => openAssignModalForSection(department.id, department.name)}
+                  className="px-3 py-1 bg-blue-950 hover:bg-blue-900 text-blue-300 border border-blue-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  + Przypisz Pracownika
+                </button>
+              )}
             </div>
 
             {department.users.length === 0 ? (
               <p className="text-xs text-slate-500 italic py-2">
-                Brak przypisanych pracowników w tej sekcji. Użyj przycisku powyżej, aby przypisać z bazy zarejestrowanych kont lub utworzyć nowego.
+                Brak przypisanych pracowników w tej sekcji.
               </p>
             ) : (
               <div className="space-y-2">
@@ -589,13 +690,15 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleUnassignEmployee(u.id, u.name)}
-                      className="px-2.5 py-1 text-slate-400 hover:text-red-400 hover:bg-red-950/40 rounded-xl transition-all text-xs font-bold border border-transparent hover:border-red-900 cursor-pointer"
-                      title="Odepnij pracownika ze ścieżki"
-                    >
-                      ✕ Odepnij
-                    </button>
+                    {canManageStructure && (
+                      <button
+                        onClick={() => handleUnassignEmployee(u.id, u.name)}
+                        className="px-2.5 py-1 text-slate-400 hover:text-red-400 hover:bg-red-950/40 rounded-xl transition-all text-xs font-bold border border-transparent hover:border-red-900 cursor-pointer"
+                        title="Odepnij pracownika ze ścieżki"
+                      >
+                        ✕ Odepnij
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -604,7 +707,7 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
         </div>
 
         {/* MODAL: DODAWANIE POD-ŚCIEŻKI / DZIAŁU */}
-        {showAddSubModal && (
+        {showAddSubModal && canManageStructure && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
             <form onSubmit={handleCreateSubPath} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in fade-in">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -648,46 +751,33 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Tryb Zmianowy</label>
-                <select
-                  value={subShiftMode}
-                  onChange={e => setSubShiftMode(parseInt(e.target.value))}
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl font-bold text-white outline-none focus:border-brand-500 text-sm cursor-pointer"
-                  disabled={subSubmitting}
-                >
-                  <option value={3}>🏭 3-zmianowy (Produkcja / Magazyn)</option>
-                  <option value={1}>📋 1 zmiana (Administracja)</option>
-                </select>
-              </div>
-
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowAddSubModal(false)}
-                  className="flex-1 py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-sm"
+                  className="flex-1 py-2.5 bg-slate-800 text-slate-300 rounded-xl font-bold hover:bg-slate-700 text-xs"
                 >
                   Anuluj
                 </button>
                 <button
                   type="submit"
                   disabled={subSubmitting}
-                  className="flex-1 py-3 px-4 bg-brand-600 hover:bg-brand-500 disabled:bg-slate-700 text-white font-extrabold rounded-xl text-sm"
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs shadow-md cursor-pointer disabled:opacity-50"
                 >
-                  {subSubmitting ? 'Tworzenie...' : 'Utwórz Pod-Ścieżkę'}
+                  {subSubmitting ? 'Zapisywanie...' : 'Utwórz Pod-Ścieżkę'}
                 </button>
               </div>
             </form>
           </div>
         )}
 
-        {/* UNIFIED MODAL: PRZYPISYWANIE / TWORZENIE PRACOWNIKA */}
-        {showAssignModal && (
+        {/* MODAL: PRZYPISYWANIE Z PRZYPISANIEM ROLI / TWORZENIE PRACY */}
+        {showAssignModal && canManageStructure && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <form onSubmit={handleAssignEmployee} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in fade-in">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-in fade-in">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-lg font-black text-white flex items-center gap-2">
-                  <span>👤</span> Przypisz Pracownika do Sekcji
+                  <span>👤</span> Przypisanie Pracownika do Ścieżki
                 </h3>
                 <button
                   type="button"
@@ -699,157 +789,187 @@ export default function DepartmentTreePage({ params }: { params: Promise<{ id: s
               </div>
 
               <div className="p-3 bg-blue-950/40 border border-blue-800 rounded-2xl text-xs text-blue-300 font-semibold">
-                Wyznaczona sekcja: <strong>{targetDeptName}</strong>
+                Wybrana Ścieżka Docelowa: <strong>{targetDeptName}</strong>
               </div>
 
-              {/* TABS FOR ASSIGNMENT MODE */}
-              <div className="flex p-1 bg-slate-950 border border-slate-800 rounded-2xl gap-1">
+              {/* Wybór Trybu: Przypisz Istniejącego vs Zarejestruj Nowego */}
+              <div className="flex p-1 bg-slate-950 rounded-2xl border border-slate-800 text-xs font-bold">
                 <button
                   type="button"
                   onClick={() => setAssignMode('PICK_EXISTING')}
-                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                  className={`flex-1 py-2 rounded-xl transition-all ${
                     assignMode === 'PICK_EXISTING'
                       ? 'bg-brand-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white'
+                      : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  Wybierz z Bazy
+                  <span>📋</span> Wybierz z Bazy ({allUsers.length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setAssignMode('CREATE_NEW')}
-                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                  className={`flex-1 py-2 rounded-xl transition-all ${
                     assignMode === 'CREATE_NEW'
-                      ? 'bg-emerald-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-brand-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  + Nowy Pracownik
+                  <span>➕</span> Zarejestruj Nowego
                 </button>
               </div>
 
               {assignMode === 'PICK_EXISTING' ? (
-                <>
-                  <div className="p-2.5 bg-amber-950/30 border border-amber-800/60 rounded-xl text-[11px] text-amber-300 font-medium">
-                    ℹ️ Każdy pracownik w fabryce może należeć tylko do <strong>jednego działu/sekcji</strong>. Wybór pracownika automatycznie przeniesie go do wybranej sekcji i nie powieli w innych miejscach.
-                  </div>
-
+                <form onSubmit={handleAssignUser} className="space-y-4 text-xs font-bold">
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                      Wybierz Pracownika z Bazy Danych *
-                    </label>
+                    <label className="block text-slate-400 uppercase tracking-wider mb-1">Pracownik z Bazy *</label>
                     <select
                       value={selectedUserId}
                       onChange={e => setSelectedUserId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl font-bold text-white outline-none focus:border-brand-500 text-sm cursor-pointer"
-                      disabled={assignSubmitting}
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white outline-none focus:border-brand-500 font-semibold text-sm"
+                      required
                     >
-                      <option value="">-- Wybierz pracownika --</option>
+                      <option value="">-- Wybierz pracownika z bazy danych --</option>
                       {allUsers.map(u => (
                         <option key={u.id} value={u.id}>
-                          👤 {u.name} ({u.login}) — {u.role}
+                          👤 {u.name} ({u.login}) - {u.role}
                         </option>
                       ))}
                     </select>
                   </div>
-                </>
-              ) : (
-                <>
-                  <div className="p-2.5 bg-emerald-950/30 border border-emerald-800/60 rounded-xl text-[11px] text-emerald-300 font-medium">
-                    ✨ Wpisz dane nowego pracownika — zostanie on utworzony w bazie danych i natychmiast przypisany do sekcji <strong>{targetDeptName}</strong>.
-                  </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Imię i Nazwisko *</label>
+                    <label className="block text-slate-400 uppercase tracking-wider mb-1">Rola / Rola na Ścieżce</label>
+                    <select
+                      value={selectedRole}
+                      onChange={e => setSelectedRole(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white outline-none focus:border-brand-500 font-semibold text-sm"
+                    >
+                      <option value="OPERATOR">🛠️ Operator Produkcji</option>
+                      <option value="BRYGADZISTA">👥 Brygadzista / Lider Zespołu</option>
+                      <option value="KIEROWNIK">👑 Kierownik Działu / Hali</option>
+                      <option value="DYREKTOR">⭐ Dyrektor Pionowy</option>
+                      <option value="ZARZAD">👑 Członek Zarządu</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2 p-3 bg-amber-950/30 border border-amber-800/40 rounded-xl text-amber-300">
+                    <input
+                      type="checkbox"
+                      id="isHeadCheck"
+                      checked={isHead}
+                      onChange={e => setIsHead(e.target.checked)}
+                      className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500"
+                    />
+                    <label htmlFor="isHeadCheck" className="cursor-pointer text-xs font-bold">
+                      👑 Wyznacz jako GŁÓWNEGO KIEROWNIKA tej ścieżki
+                    </label>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAssignModal(false)}
+                      className="flex-1 py-2.5 bg-slate-800 text-slate-300 rounded-xl font-bold hover:bg-slate-700 text-xs"
+                    >
+                      Anuluj
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={assignSubmitting}
+                      className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs shadow-md cursor-pointer disabled:opacity-50"
+                    >
+                      {assignSubmitting ? 'Przypisywanie...' : 'Przypisz Pracownika'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleCreateNewUserAndAssign} className="space-y-4 text-xs font-bold">
+                  <div>
+                    <label className="block text-slate-400 uppercase tracking-wider mb-1">Imię i Nazwisko *</label>
                     <input
                       type="text"
                       value={newUserName}
                       onChange={e => setNewUserName(e.target.value)}
-                      placeholder="np. Piotr Kowalski"
-                      className="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 rounded-xl font-bold text-white outline-none focus:border-brand-500 text-sm"
-                      disabled={assignSubmitting}
+                      placeholder="np. Piotr Nowak"
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white outline-none focus:border-brand-500 text-sm font-semibold"
+                      required
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Login Dostępny *</label>
-                    <input
-                      type="text"
-                      value={newUserLogin}
-                      onChange={e => setNewUserLogin(e.target.value)}
-                      placeholder="np. pkowalski"
-                      className="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 rounded-xl font-bold text-white outline-none focus:border-brand-500 text-sm"
-                      disabled={assignSubmitting}
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-slate-400 uppercase tracking-wider mb-1">Login (Nick) *</label>
+                      <input
+                        type="text"
+                        value={newUserLogin}
+                        onChange={e => setNewUserLogin(e.target.value)}
+                        placeholder="piotr.nowak"
+                        autoComplete="off"
+                        className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white outline-none focus:border-brand-500 text-xs font-mono"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 uppercase tracking-wider mb-1">Hasło *</label>
+                      <input
+                        type="password"
+                        value={newUserPassword}
+                        onChange={e => setNewUserPassword(e.target.value)}
+                        placeholder="Wpisz hasło"
+                        autoComplete="new-password"
+                        className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white outline-none focus:border-brand-500 text-xs font-mono"
+                        required
+                      />
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Hasło Domyślne</label>
-                    <input
-                      type="text"
-                      value={newUserPassword}
-                      onChange={e => setNewUserPassword(e.target.value)}
-                      placeholder="123456"
-                      className="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 rounded-xl font-bold text-white outline-none focus:border-brand-500 text-sm"
-                      disabled={assignSubmitting}
-                    />
+                    <label className="block text-slate-400 uppercase tracking-wider mb-1">Rola w Systemie</label>
+                    <select
+                      value={selectedRole}
+                      onChange={e => setSelectedRole(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white outline-none focus:border-brand-500 font-semibold text-sm"
+                    >
+                      <option value="OPERATOR">🛠️ Operator Produkcji</option>
+                      <option value="BRYGADZISTA">👥 Brygadzista / Lider Zespołu</option>
+                      <option value="KIEROWNIK">👑 Kierownik Działu / Hali</option>
+                      <option value="DYREKTOR">⭐ Dyrektor Pionowy</option>
+                      <option value="ZARZAD">👑 Członek Zarządu</option>
+                    </select>
                   </div>
-                </>
+
+                  <div className="flex items-center gap-2 p-3 bg-amber-950/30 border border-amber-800/40 rounded-xl text-amber-300">
+                    <input
+                      type="checkbox"
+                      id="isHeadCheckNew"
+                      checked={isHead}
+                      onChange={e => setIsHead(e.target.checked)}
+                      className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500"
+                    />
+                    <label htmlFor="isHeadCheckNew" className="cursor-pointer text-xs font-bold">
+                      👑 Wyznacz jako GŁÓWNEGO KIEROWNIKA tej ścieżki
+                    </label>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAssignModal(false)}
+                      className="flex-1 py-2.5 bg-slate-800 text-slate-300 rounded-xl font-bold hover:bg-slate-700 text-xs"
+                    >
+                      Anuluj
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={assignSubmitting}
+                      className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs shadow-md cursor-pointer disabled:opacity-50"
+                    >
+                      {assignSubmitting ? 'Rejestrowanie...' : 'Zarejestruj i Przypisz'}
+                    </button>
+                  </div>
+                </form>
               )}
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Stanowisko / Rola w tej Ścieżce
-                </label>
-                <select
-                  value={selectedRole}
-                  onChange={e => setSelectedRole(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl font-bold text-white outline-none focus:border-brand-500 text-sm cursor-pointer"
-                  disabled={assignSubmitting}
-                >
-                  <option value="OPERATOR">⚙️ Operator Maszyny / Produkcji</option>
-                  <option value="KIEROWNIK">👑 Kierownik / Lider Zmiany</option>
-                  <option value="Mechanik">🔧 Mechanik / Utrzymanie Ruchu</option>
-                  <option value="Inżynier Jakości">📋 Inżynier Jakości</option>
-                  <option value="ZARZAD">👑 Członek Zarządu (Zarząd)</option>
-                  <option value="DIRECTOR">⭐ Dyrektor Pionu / Działu</option>
-                </select>
-              </div>
-
-              <div className="pt-1">
-                <label className="flex items-center gap-2 text-xs font-bold text-amber-300 cursor-pointer p-2.5 bg-amber-950/40 rounded-xl border border-amber-800">
-                  <input
-                    type="checkbox"
-                    checked={isHead}
-                    onChange={e => setIsHead(e.target.checked)}
-                    className="w-4 h-4 rounded text-amber-500"
-                    disabled={assignSubmitting}
-                  />
-                  <span>👑 Ustaw jako Kierownika tej Sekcji / Działu</span>
-                </label>
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAssignModal(false)}
-                  className="flex-1 py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-sm"
-                >
-                  Anuluj
-                </button>
-                <button
-                  type="submit"
-                  disabled={assignSubmitting}
-                  className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white font-extrabold rounded-xl text-sm cursor-pointer"
-                >
-                  {assignSubmitting
-                    ? 'Przypisywanie...'
-                    : assignMode === 'PICK_EXISTING'
-                    ? '✅ Przenieś i Przypisz'
-                    : '✨ Utwórz i Przypisz'}
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
         )}
       </div>

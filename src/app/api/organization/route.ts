@@ -3,13 +3,16 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/config/db';
 import { getAuthSession } from '@/lib/auth';
 
+import { checkRolePermission } from '@/lib/permissions';
+
 /** Roles dozwolone do zarządzania strukturą organizacyjną. */
 const ALLOWED_MANAGEMENT_ROLES = new Set([
-  'ADMIN', 'ADMINISTRATOR', 'ZARZAD', 'ZARZĄD', 'BOARD',
+  'ADMIN', 'ADMINISTRATOR', 'ZARZAD', 'ZARZĄD', 'BOARD', 'KIEROWNIK', 'MANAGER', 'DYREKTOR', 'DIRECTOR',
 ]);
 
 function hasManagementAccess(role: string): boolean {
-  return ALLOWED_MANAGEMENT_ROLES.has(role.toUpperCase());
+  if (ALLOWED_MANAGEMENT_ROLES.has((role || '').toUpperCase())) return true;
+  return checkRolePermission(role, 'structure.create') || checkRolePermission(role, 'users.edit');
 }
 
 export async function GET(request: Request) {

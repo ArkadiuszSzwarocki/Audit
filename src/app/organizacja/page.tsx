@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useOrganization } from '@/hooks/useOrganization';
@@ -17,6 +17,12 @@ export default function OrganizacjaPage() {
   const { fetchStructure, fetchPositions, structure, positions, loading, error } = useOrganization();
   const { showToast, showConfirm } = useToast();
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
+
+  const canManageStructure = useMemo(() => {
+    if (!user) return false;
+    const role = (user.role || '').toUpperCase();
+    return ['ADMIN', 'ADMINISTRATOR', 'ZARZAD', 'ZARZĄD', 'BOARD', 'KIEROWNIK', 'MANAGER', 'DYREKTOR', 'DIRECTOR'].includes(role);
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -46,6 +52,11 @@ export default function OrganizacjaPage() {
   }, [structure]);
 
   const handleUnassignUser = async (userId: string, userName: string) => {
+    if (!canManageStructure) {
+      showToast('Opcja wyłączona w trybie podglądu (Operator)', 'error');
+      return;
+    }
+
     showConfirm({
       title: 'Odpięcie pracownika z departamentu',
       message: `Czy na pewno chcesz odpiąć użytkownika "${userName}" z departamentu "${selectedDepartment?.name}"?`,
@@ -75,6 +86,11 @@ export default function OrganizacjaPage() {
   };
 
   const handleDeleteDepartment = async (deptId: string, deptName: string) => {
+    if (!canManageStructure) {
+      showToast('Opcja wyłączona w trybie podglądu (Operator)', 'error');
+      return;
+    }
+
     showConfirm({
       title: 'Usuwanie Departamentu',
       message: `Czy na pewno chcesz usunąć departament "${deptName}"? Pracownicy przypisani do niego zostaną bez przypisanego działu.`,
@@ -108,7 +124,7 @@ export default function OrganizacjaPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-950">
         <div className="text-center text-slate-600 dark:text-slate-400 text-lg font-bold">
-          Zaloguj się, aby zarządzać strukturą organizacyjną fabryki.
+          Zaloguj się, aby przeglądać strukturę organizacyjną fabryki.
         </div>
       </div>
     );
@@ -124,10 +140,20 @@ export default function OrganizacjaPage() {
               <span>🏢</span> Drzewo Organizacyjne Fabryki
             </h1>
             <p className="text-slate-500 text-xs sm:text-sm font-semibold mt-1">
-              Stwórz strukturę działów fabrycznych, wyznaczaj kierowników i przypisuj istniejących pracowników z bazy danych
+              Struktura działów fabrycznych, wyznaczeni kierownicy i przypisani pracownicy
             </p>
           </div>
         </div>
+
+        {/* Baner informacyjny dla Operatora (Tryb Read-Only) */}
+        {!canManageStructure && (
+          <div className="p-4 bg-blue-50 dark:bg-slate-800/80 border border-blue-200 dark:border-slate-700 rounded-2xl text-xs text-blue-900 dark:text-blue-200 font-semibold flex items-center gap-3">
+            <span className="text-xl">ℹ️</span>
+            <div>
+              <strong>Tryb Podglądu Struktury Organizacyjnej (Read-Only):</strong> Jesteś zalogowany jako pracownik/operator. Posiadasz pełen wgląd w drzewo działów fabryki oraz przydzielonych kierowników. Modyfikacja struktury jest zastrzeżona dla Kierowników i Administratorów.
+            </div>
+          </div>
+        )}
 
         {/* Layout: Drzewo + Szczegóły */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -143,13 +169,15 @@ export default function OrganizacjaPage() {
 
           {/* Prawa kolumna - Szczegóły i akcje */}
           <div className="space-y-6">
-            {/* Tworzenie departamentu */}
-            <CreateDepartmentForm
-              parentDepartmentId={selectedDepartment?.id}
-              onDepartmentCreated={() => {
-                fetchStructure();
-              }}
-            />
+            {/* Tworzenie departamentu (Tylko dla Kierowników/Admina) */}
+            {canManageStructure && (
+              <CreateDepartmentForm
+                parentDepartmentId={selectedDepartment?.id}
+                onDepartmentCreated={() => {
+                  fetchStructure();
+                }}
+              />
+            )}
 
             {/* Szczegóły wybranego departamentu */}
             {selectedDepartment && (
@@ -158,12 +186,14 @@ export default function OrganizacjaPage() {
                   <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <span>📋</span> Szczegóły Departamentu
                   </h3>
-                  <button
-                    onClick={() => handleDeleteDepartment(selectedDepartment.id, selectedDepartment.name)}
-                    className="px-2.5 py-1 text-xs font-extrabold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-all cursor-pointer border border-red-200 dark:border-red-900"
-                  >
-                    🗑️ Usuń Dział
-                  </button>
+                  {canManageStructure && (
+                    <button
+                      onClick={() => handleDeleteDepartment(selectedDepartment.id, selectedDepartment.name)}
+                      className="px-2.5 py-1 text-xs font-extrabold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-all cursor-pointer border border-red-200 dark:border-red-900"
+                    >
+                      🗑️ Usuń Dział
+                    </button>
+                  )}
                 </div>
 
                 <button
@@ -219,7 +249,7 @@ export default function OrganizacjaPage() {
                     </div>
 
                     {!selectedDepartment.users || selectedDepartment.users.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic">Brak przypisanych pracowników. Użyj formularza poniżej, aby przypisać z bazy danych.</p>
+                      <p className="text-xs text-slate-400 italic">Brak przypisanych pracowników w dziale.</p>
                     ) : (
                       <ul className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                         {selectedDepartment.users.map(u => (
@@ -229,13 +259,15 @@ export default function OrganizacjaPage() {
                               <span className="ml-1.5 text-slate-400 font-medium">({u.login})</span>
                               {u.role && <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 rounded font-bold text-[10px]">{u.role}</span>}
                             </div>
-                            <button
-                              onClick={() => handleUnassignUser(u.id, u.name)}
-                              className="text-slate-400 hover:text-red-500 font-bold px-1.5 py-0.5 rounded"
-                              title="Odepnij pracownika"
-                            >
-                              ✕
-                            </button>
+                            {canManageStructure && (
+                              <button
+                                onClick={() => handleUnassignUser(u.id, u.name)}
+                                className="text-slate-400 hover:text-red-500 font-bold px-1.5 py-0.5 rounded cursor-pointer"
+                                title="Odepnij pracownika"
+                              >
+                                ✕
+                              </button>
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -245,20 +277,24 @@ export default function OrganizacjaPage() {
               </div>
             )}
 
-            {/* Przypisanie Pracownika z Bazy */}
-            <EmployeeAssignmentForm
-              selectedDepartment={selectedDepartment || undefined}
-              onAssignmentComplete={() => {
-                fetchStructure();
-              }}
-            />
+            {/* Przypisanie Pracownika z Bazy (Tylko dla Kierowników/Admina) */}
+            {canManageStructure && (
+              <EmployeeAssignmentForm
+                selectedDepartment={selectedDepartment || undefined}
+                onAssignmentComplete={() => {
+                  fetchStructure();
+                }}
+              />
+            )}
 
-            {/* Tworzenie Stanowiska */}
-            <CreatePositionForm
-              onPositionCreated={() => {
-                fetchPositions();
-              }}
-            />
+            {/* Tworzenie Stanowiska (Tylko dla Kierowników/Admina) */}
+            {canManageStructure && (
+              <CreatePositionForm
+                onPositionCreated={() => {
+                  fetchPositions();
+                }}
+              />
+            )}
           </div>
         </div>
       </div>

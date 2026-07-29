@@ -67,12 +67,12 @@ async function getSessionUser(req: NextRequest) {
 }
 
 /**
- * DELETE /api/urlopy/[id] — usuwa wniosek urlopowy (Kierownicy, Managerowie, Zarząd, Admini oraz Przełożeni).
+ * DELETE /api/urlopy/[id] — usuwa wniosek urlopowy (Kierownicy, Managerowie, Zarząd, Admini oraz Właściciel wniosku).
  * Jeśli wniosek był zatwierdzony (APPROVED), zwraca dni do puli urlopowej użytkownika.
  */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } | Promise<{ id: string }> }
 ) {
   try {
     const sessionUser = await getSessionUser(req);
@@ -80,8 +80,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Niezalogowany' }, { status: 401 });
     }
 
-    const { id } = params;
-    if (!id) {
+    const rawParams = await context.params;
+    const id = rawParams?.id;
+
+    if (!id || id === 'undefined' || id === 'null') {
       return NextResponse.json({ error: 'Brak ID wniosku' }, { status: 400 });
     }
 
@@ -117,7 +119,7 @@ export async function DELETE(
 
     if (!isManagementOrBoard && !isDirectApprover && !isSelf) {
       return NextResponse.json(
-        { error: 'Brak uprawnień przełożonego, zarządu lub administratora do usunięcia tego wniosku' },
+        { error: 'Brak uprawnień do usunięcia tego wniosku urlopowego' },
         { status: 403 }
       );
     }

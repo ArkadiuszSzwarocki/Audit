@@ -24,16 +24,36 @@ interface LeaveRequestHistoryProps {
 }
 
 const TYPE_LABELS: Record<string, { label: string; icon: string; color: string }> = {
-  WYPOCZYNKOWY: { label: 'Urlop wypoczynkowy', icon: '🏖️', color: '#10b981' },
-  VACATION: { label: 'Urlop wypoczynkowy', icon: '🏖️', color: '#10b981' },
-  CHOROBOWY: { label: 'Zwolnienie lekarskie (L4)', icon: '🏥', color: '#ef4444' },
-  SICK_LEAVE: { label: 'Zwolnienie lekarskie (L4)', icon: '🏥', color: '#ef4444' },
-  NA_ZADANIE: { label: 'Urlop na żądanie', icon: '📋', color: '#8b5cf6' },
-  ON_DEMAND: { label: 'Urlop na żądanie', icon: '📋', color: '#8b5cf6' },
-  BEZPLATNY: { label: 'Urlop bezpłatny', icon: '⚠️', color: '#f59e0b' },
-  UNPAID: { label: 'Urlop bezpłatny', icon: '⚠️', color: '#f59e0b' },
-  SPECJALNY: { label: 'Urlop specjalny', icon: '⭐', color: '#06b6d4' },
-  SPECIAL: { label: 'Urlop specjalny', icon: '⭐', color: '#06b6d4' },
+  WYPOCZYNKOWY: { label: 'Urlop Wypoczynkowy', icon: '🏖️', color: '#10b981' },
+  VACATION: { label: 'Urlop Wypoczynkowy', icon: '🏖️', color: '#10b981' },
+  NA_ZADANIE: { label: 'Urlop na Żądanie', icon: '📋', color: '#8b5cf6' },
+  ON_DEMAND: { label: 'Urlop na Żądanie', icon: '📋', color: '#8b5cf6' },
+  BEZPLATNY: { label: 'Urlop Bezpłatny', icon: '⚠️', color: '#f59e0b' },
+  UNPAID: { label: 'Urlop Bezpłatny', icon: '⚠️', color: '#f59e0b' },
+  CHOROBOWY: { label: 'Zwolnienie Lekarskie (L4)', icon: '🏥', color: '#ef4444' },
+  SICK_LEAVE: { label: 'Zwolnienie Lekarskie (L4)', icon: '🏥', color: '#ef4444' },
+  MACIERZYNSKI: { label: 'Urlop Macierzyński', icon: '👶', color: '#ec4899' },
+  MATERNITY: { label: 'Urlop Macierzyński', icon: '👶', color: '#ec4899' },
+  RODZICIELSKI: { label: 'Urlop Rodzicielski', icon: '🍼', color: '#f43f5e' },
+  PARENTAL: { label: 'Urlop Rodzicielski', icon: '🍼', color: '#f43f5e' },
+  OJCOWSKI: { label: 'Urlop Ojcowski', icon: '👨‍🍼', color: '#3b82f6' },
+  PATERNITY: { label: 'Urlop Ojcowski', icon: '👨‍🍼', color: '#3b82f6' },
+  WYCHOWAWCZY: { label: 'Urlop Wychowawczy', icon: '🧸', color: '#a855f7' },
+  CHILD_CARE: { label: 'Urlop Wychowawczy', icon: '🧸', color: '#a855f7' },
+  OPIEKA_ART188: { label: 'Opieka nad Dzieckiem (art. 188 KP)', icon: '👧', color: '#06b6d4' },
+  CHILD_CARE_ART188: { label: 'Opieka nad Dzieckiem (art. 188 KP)', icon: '👧', color: '#06b6d4' },
+  SILA_WYZSZA: { label: 'Siła Wyższa (art. 148¹ KP)', icon: '🚨', color: '#eab308' },
+  FORCE_MAJEURE: { label: 'Siła Wyższa (art. 148¹ KP)', icon: '🚨', color: '#eab308' },
+  OPIEKUNCZY: { label: 'Urlop Opiekuńczy (art. 173¹ KP)', icon: '🧑‍🦽', color: '#6366f1' },
+  CARER_LEAVE: { label: 'Urlop Opiekuńczy (art. 173¹ KP)', icon: '🧑‍🦽', color: '#6366f1' },
+  OKOLICZNOSCIOWY: { label: 'Urlop Okolicznościowy', icon: '💍', color: '#14b8a6' },
+  SPECIAL: { label: 'Urlop Okolicznościowy', icon: '💍', color: '#14b8a6' },
+  SZKOLENIOWY: { label: 'Urlop Szkoleniowy', icon: '🎓', color: '#0284c7' },
+  TRAINING: { label: 'Urlop Szkoleniowy', icon: '🎓', color: '#0284c7' },
+  KRWIODASTWO: { label: 'Oddanie Krwi / Szpiku', icon: '🩸', color: '#dc2626' },
+  BLOOD_DONOR: { label: 'Oddanie Krwi / Szpiku', icon: '🩸', color: '#dc2626' },
+  REHABILITACYJNY: { label: 'Urlop Rehabilitacyjny', icon: '♿', color: '#059669' },
+  REHABILITATION: { label: 'Urlop Rehabilitacyjny', icon: '♿', color: '#059669' },
 };
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; icon: string }> = {
@@ -43,7 +63,7 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; i
 };
 
 export function LeaveRequestHistory({ userId }: LeaveRequestHistoryProps) {
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { showToast, showConfirm } = useToast();
   const { deleteLeaveRequest, fetchLeaveBalance } = useLeaves();
 
@@ -80,11 +100,17 @@ export function LeaveRequestHistory({ userId }: LeaveRequestHistoryProps) {
   }, [fetchRequests]);
 
   const handleDeleteRequest = (req: LeaveRequestHistoryItem) => {
+    const requestId = req.id || (req as any)._id;
+    if (!requestId) {
+      showToast('Brak identyfikatora wniosku.', 'error');
+      return;
+    }
+
     const typeLabel = TYPE_LABELS[req.type]?.label || req.type;
     const isApproved = req.status === 'APPROVED';
 
     const message = isApproved
-      ? `Czy na pewno chcesz usunąć ten ZATWIERDZONY wniosek urlopowy (${typeLabel}, ${req.daysCount ?? 1} dni)? Dni z tego wniosku automatycznie powrócą do puli urlopowej użytkownika!`
+      ? `Czy na pewno chcesz usunąć ten ZATWIERDZONY wniosek urlopowy (${typeLabel}, ${req.daysCount ?? 1} dni)? Dni z tego wniosku automatycznie powrócą do puli urlopowej!`
       : `Czy na pewno chcesz usunąć ten wniosek urlopowy (${typeLabel})?`;
 
     showConfirm({
@@ -94,7 +120,7 @@ export function LeaveRequestHistory({ userId }: LeaveRequestHistoryProps) {
       isDanger: true,
       onConfirm: async () => {
         try {
-          const result = await deleteLeaveRequest(req.id);
+          const result = await deleteLeaveRequest(requestId);
           showToast(
             result.message || 'Wniosek urlopowy został usunięty.',
             'success'
@@ -274,8 +300,8 @@ export function LeaveRequestHistory({ userId }: LeaveRequestHistoryProps) {
                       </span>
                     )}
 
-                    {/* Przycisk usuwania dla Admina */}
-                    {isAdmin && (
+                    {/* Przycisk usuwania dla użytkownika lub Admina */}
+                    {(isAdmin || user?.id === userId || user?.id === (req as any).userId) && (
                       <button
                         onClick={() => handleDeleteRequest(req)}
                         className="mt-1 text-xs px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 font-semibold rounded-md border border-red-200 transition-colors flex items-center gap-1 cursor-pointer"
