@@ -123,11 +123,21 @@ export class UserRepository {
   }
 
   /**
-   * Usuwa użytkownika
+   * Usuwa użytkownika wraz ze zwalnianiem przypisań w zgłoszeniach i usuwaniem historii zmian
    */
   async delete(id: string) {
-    return await prisma.user.delete({
-      where: { id }
+    return await prisma.$transaction(async (tx) => {
+      await tx.faultReport.updateMany({ where: { assignedToId: id }, data: { assignedToId: null } });
+      await tx.bhpHazardReport.updateMany({ where: { assignedToId: id }, data: { assignedToId: null } });
+      await tx.qualityReport.updateMany({ where: { assignedToId: id }, data: { assignedToId: null } });
+      await tx.observation.updateMany({ where: { assignedToId: id }, data: { assignedToId: null } });
+      await tx.kaizen.updateMany({ where: { assignedToId: id }, data: { assignedToId: null } });
+      await tx.helpDeskTicket.updateMany({ where: { approvedById: id }, data: { approvedById: null } });
+      await tx.helpDeskTicketHistory.deleteMany({ where: { changedBy: id } });
+
+      return await tx.user.delete({
+        where: { id }
+      });
     });
   }
 }

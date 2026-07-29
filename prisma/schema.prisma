@@ -11,8 +11,14 @@ model Area {
   id               String            @id @default(uuid())
   name             String
   description      String?
+  shiftMode        Int               @default(3)
+  parentAreaId     String?
+  headUserId       String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+  parentArea       Area?             @relation("ParentChildArea", fields: [parentAreaId], references: [id], onDelete: SetNull)
+  childAreas       Area[]            @relation("ParentChildArea")
+  headUser         User?             @relation("AreaHeadUser", fields: [headUserId], references: [id], onDelete: SetNull)
   audits           Audit[]
   bhpHazardReports BhpHazardReport[]
   documents        Document[]
@@ -89,7 +95,7 @@ model Observation {
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
   audit           Audit                  @relation(fields: [auditId], references: [id], onDelete: Cascade)
-  assignedTo      User?                  @relation(fields: [assignedToId], references: [id])
+  assignedTo      User?                  @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
   extensions      ObservationExtension[]
 
   @@index([auditId])
@@ -146,7 +152,7 @@ model Kaizen {
   assignedToId   String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-  assignedTo     User?     @relation("KaizenAssignedTo", fields: [assignedToId], references: [id])
+  assignedTo     User?     @relation("KaizenAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
   machine        Machine?  @relation(fields: [machineId], references: [id], onDelete: Cascade)
   area           Area?     @relation(fields: [areaId], references: [id], onDelete: Cascade)
 
@@ -227,9 +233,13 @@ model User {
   assignedTasks               Observation[]
   assignedQualityReports      QualityReport[]
   responsibleArea             Area?              @relation("UserResponsibleArea", fields: [responsibleAreaId], references: [id])
+  headOfAreas                 Area[]             @relation("AreaHeadUser")
   userRole                    Role?              @relation(fields: [roleId], references: [id])
   trainings                   UserTraining[]
   ticketHistoryChanges        HelpDeskTicketHistory[] @relation("TicketHistoryChanges")
+  leaveBalances               LeaveBalance[]
+  leaveRequests               LeaveRequest[]     @relation("UserLeaveRequests")
+  approvedLeaves              LeaveRequest[]     @relation("ApproverLeaveRequests")
 
   @@index([role])
   @@index([responsibleAreaId])
@@ -263,7 +273,7 @@ model FaultReport {
   assignedToId    String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  assignedTo      User?     @relation(fields: [assignedToId], references: [id])
+  assignedTo      User?     @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
   machine         Machine?  @relation(fields: [machineId], references: [id])
   area            Area?     @relation(fields: [areaId], references: [id])
 
@@ -377,7 +387,7 @@ model BhpHazardReport {
   assignedToId   String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-  assignedTo     User?     @relation(fields: [assignedToId], references: [id])
+  assignedTo     User?     @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
   machine        Machine?  @relation(fields: [machineId], references: [id])
   area           Area?     @relation(fields: [areaId], references: [id])
 
@@ -409,7 +419,7 @@ model QualityReport {
   assignedToId     String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
-  assignedTo       User?     @relation(fields: [assignedToId], references: [id])
+  assignedTo       User?     @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
   machine          Machine?  @relation(fields: [machineId], references: [id])
   area             Area?     @relation(fields: [areaId], references: [id])
 
@@ -509,7 +519,7 @@ model HelpDeskTicket {
   realizedAt          DateTime?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
-  approvedBy          User?          @relation("ApprovedTickets", fields: [approvedById], references: [id])
+  approvedBy          User?          @relation("ApprovedTickets", fields: [approvedById], references: [id], onDelete: SetNull)
   createdBy           User           @relation("CreatedTickets", fields: [createdById], references: [id], onDelete: Cascade)
   assignedTo          User?          @relation("AssignedTickets", fields: [assignedToId], references: [id], onDelete: SetNull)
   assignedBy          User?          @relation("AssignedByTickets", fields: [assignedById], references: [id], onDelete: SetNull)
@@ -521,7 +531,7 @@ model HelpDeskTicketHistory {
   ticketId  String
   ticket    HelpDeskTicket @relation("TicketHistory", fields: [ticketId], references: [id], onDelete: Cascade)
   changedBy String
-  user      User     @relation("TicketHistoryChanges", fields: [changedBy], references: [id])
+  user      User     @relation("TicketHistoryChanges", fields: [changedBy], references: [id], onDelete: Cascade)
   field     String
   oldValue  String?
   newValue  String?
@@ -560,4 +570,44 @@ model HelpDeskConfig {
   updatedAt             DateTime @updatedAt
 
   @@map("helpdesk_config")
+}
+
+model LeaveBalance {
+  id              String   @id @default(uuid())
+  userId          String
+  year            Int      @default(2026)
+  totalDays       Int      @default(26)
+  usedDays        Float    @default(0)
+  availableDays   Float    @default(26)
+  overdueDays     Float    @default(0)
+  usedOverdueDays Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, year])
+  @@index([userId])
+  @@index([year])
+}
+
+model LeaveRequest {
+  id           String    @id @default(uuid())
+  userId       String
+  type         String    @default("WYPOCZYNKOWY")
+  startDate    DateTime
+  endDate      DateTime
+  daysCount    Float     @default(1)
+  reason       String?
+  status       String    @default("PENDING")
+  approverId   String?
+  approverNote String?
+  approvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation("UserLeaveRequests", fields: [userId], references: [id], onDelete: Cascade)
+  approver     User?     @relation("ApproverLeaveRequests", fields: [approverId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([startDate])
 }

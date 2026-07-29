@@ -1,9 +1,12 @@
+'use client';
+
 import React, { useState } from 'react';
 
 interface EmployeeBalanceCardProps {
   balance: any;
   onAdjust?: (adjustment: number) => void;
   onSetTotal?: (newTotal: number) => void;
+  onSetOverdue?: (newOverdue: number) => void;
   loading?: boolean;
 }
 
@@ -11,141 +14,165 @@ export function EmployeeBalanceCard({
   balance,
   onAdjust,
   onSetTotal,
-  loading = false
+  onSetOverdue,
+  loading = false,
 }: EmployeeBalanceCardProps) {
-  const [showAdjustForm, setShowAdjustForm] = useState(false);
-  const [adjustmentValue, setAdjustmentValue] = useState(0);
-  const [newTotalValue, setNewTotalValue] = useState(balance.totalDays);
+  const [showOverdueForm, setShowOverdueForm] = useState(false);
+  const [showTotalForm, setShowTotalForm] = useState(false);
 
-  const availableDays = balance.totalDays - balance.usedDays;
-  const usagePercent = balance.totalDays > 0 ? (balance.usedDays / balance.totalDays * 100) : 0;
+  const [overdueInput, setOverdueInput] = useState(balance.overdueDays || 0);
+  const [totalInput, setTotalInput] = useState(balance.totalDays || 26);
 
-  const handleAdjust = () => {
-    if (adjustmentValue !== 0) {
-      onAdjust?.(adjustmentValue);
-      setAdjustmentValue(0);
-      setShowAdjustForm(false);
-    }
+  const remainingOverdue = Math.max(0, (balance.overdueDays || 0) - (balance.usedOverdueDays || 0));
+  const remainingCurrent = Math.max(0, (balance.totalDays || 26) - (balance.usedDays || 0));
+  const totalAvailable = remainingOverdue + remainingCurrent;
+
+  const handleSaveOverdue = () => {
+    onSetOverdue?.(Number(overdueInput) || 0);
+    setShowOverdueForm(false);
   };
 
-  const handleSetTotal = () => {
-    if (newTotalValue !== balance.totalDays) {
-      onSetTotal?.(newTotalValue);
-    }
+  const handleSaveTotal = () => {
+    onSetTotal?.(Number(totalInput) || 0);
+    setShowTotalForm(false);
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
-      {/* Header */}
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">{balance.user.name}</h3>
-        <p className="text-sm text-gray-600">{balance.user.login}</p>
-        {balance.user.department && (
-          <p className="text-sm text-gray-600">{balance.user.department.name}</p>
-        )}
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="text-center">
-          <p className="text-sm text-gray-600 mb-1">Całkowita pula</p>
-          <p className="text-2xl font-bold text-blue-600">{balance.totalDays}</p>
-          <p className="text-xs text-gray-500">dni</p>
-        </div>
-        <div className="text-center">
-          <p className="text-sm text-gray-600 mb-1">Użyte dni</p>
-          <p className="text-2xl font-bold text-red-600">{balance.usedDays}</p>
-          <p className="text-xs text-gray-500">({usagePercent.toFixed(0)}%)</p>
-        </div>
-        <div className="text-center">
-          <p className="text-sm text-gray-600 mb-1">Dostępne</p>
-          <p className={`text-2xl font-bold ${availableDays >= 0 ? 'text-green-600' : 'text-orange-600'}`}>
-            {availableDays}
+    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-md hover:shadow-xl transition-all space-y-5">
+      {/* Nagłówek Pracownika */}
+      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div>
+          <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <span>👤</span> {balance.user.name}
+          </h3>
+          <p className="text-xs font-semibold text-slate-400">
+            Login: {balance.user.login} {balance.user.role ? `• Rola: ${balance.user.role}` : ''}
           </p>
-          <p className="text-xs text-gray-500">dni</p>
+          {balance.user.department && (
+            <p className="text-xs font-bold text-brand-600 dark:text-brand-400 mt-0.5">
+              🏢 Dział: {balance.user.department.name}
+            </p>
+          )}
+        </div>
+
+        <div className="text-right">
+          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Łącznie Dostępne</span>
+          <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">{totalAvailable} <span className="text-xs font-bold">dni</span></span>
         </div>
       </div>
 
-      {/* Progress Bar */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-medium text-gray-700">Wykorzystanie</span>
-          <span className="text-sm text-gray-600">{usagePercent.toFixed(1)}%</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div
-            className={`h-2 rounded-full transition-all ${
-              usagePercent > 80 ? 'bg-red-500' : usagePercent > 50 ? 'bg-yellow-500' : 'bg-green-500'
-            }`}
-            style={{ width: `${Math.min(usagePercent, 100)}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => setShowAdjustForm(!showAdjustForm)}
-          disabled={loading}
-          className="flex-1 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50"
-        >
-          Dostosuj dni
-        </button>
-        <button
-          onClick={() => handleSetTotal()}
-          disabled={loading || newTotalValue === balance.totalDays}
-          className="flex-1 px-3 py-2 text-sm font-medium text-green-600 hover:bg-green-50 rounded-md transition-colors disabled:opacity-50"
-        >
-          Zmień pulę
-        </button>
-      </div>
-
-      {/* Adjust Form */}
-      {showAdjustForm && (
-        <div className="bg-blue-50 rounded-md p-4 mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Dostosowanie dni (może być ujemne)
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              value={adjustmentValue}
-              onChange={(e) => setAdjustmentValue(parseFloat(e.target.value) || 0)}
-              placeholder="np. 2 lub -1"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+      {/* Grid: Urlop Zaległy 2025 vs Urlop Bieżący 2026 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        
+        {/* KARTA 1: URLOP ZALEGŁY Z 2025 R. */}
+        <div className="p-4 bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-2xl space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
+              <span>📋</span> Zaległy (2025 r.)
+            </span>
             <button
-              onClick={handleAdjust}
-              disabled={loading || adjustmentValue === 0}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+              onClick={() => setShowOverdueForm(!showOverdueForm)}
+              disabled={loading}
+              className="text-[11px] font-extrabold text-amber-700 dark:text-amber-300 hover:underline cursor-pointer"
             >
-              Zastosuj
+              ✏️ Zmień Zaległy
             </button>
           </div>
-        </div>
-      )}
 
-      {/* Set Total Form */}
-      <div className="bg-green-50 rounded-md p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Zmiana całkowitej puli
-        </label>
-        <input
-          type="number"
-          value={newTotalValue}
-          onChange={(e) => setNewTotalValue(parseFloat(e.target.value) || 0)}
-          min="0"
-          max="365"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
-        />
-        <p className="text-xs text-gray-600 mt-2">
-          Uwaga: Nie możesz zmniejszyć puli poniżej {balance.usedDays} już użytych dni
-        </p>
+          <div className="flex items-baseline justify-between pt-1">
+            <div>
+              <span className="text-2xl font-black text-amber-900 dark:text-amber-200">
+                {remainingOverdue} <span className="text-xs font-bold">zostało</span>
+              </span>
+              <div className="text-[10px] text-amber-700/80 dark:text-amber-400 font-medium">
+                Przyznane: {balance.overdueDays || 0} dn. | Użyte: {balance.usedOverdueDays || 0} dn.
+              </div>
+            </div>
+          </div>
+
+          {showOverdueForm && (
+            <div className="pt-2 border-t border-amber-200 dark:border-amber-800/60 space-y-2 animate-in fade-in">
+              <label className="block text-[11px] font-bold text-amber-900 dark:text-amber-200">
+                Wpisz wymiar zaległego urlopu 2025 (dni):
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  value={overdueInput}
+                  onChange={e => setOverdueInput(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-950 border border-amber-300 dark:border-amber-700 rounded-xl font-bold text-slate-800 dark:text-slate-100 text-xs"
+                />
+                <button
+                  onClick={handleSaveOverdue}
+                  disabled={loading}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs transition-all cursor-pointer"
+                >
+                  Zapisz
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* KARTA 2: URLOP BIEŻĄCY 2026 R. */}
+        <div className="p-4 bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-2xl space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-blue-700 dark:text-blue-300 uppercase tracking-wider flex items-center gap-1">
+              <span>🌴</span> Bieżący (2026 r.)
+            </span>
+            <button
+              onClick={() => setShowTotalForm(!showTotalForm)}
+              disabled={loading}
+              className="text-[11px] font-extrabold text-blue-700 dark:text-blue-300 hover:underline cursor-pointer"
+            >
+              ✏️ Zmień Pulę
+            </button>
+          </div>
+
+          <div className="flex items-baseline justify-between pt-1">
+            <div>
+              <span className="text-2xl font-black text-blue-900 dark:text-blue-200">
+                {remainingCurrent} <span className="text-xs font-bold">zostało</span>
+              </span>
+              <div className="text-[10px] text-blue-700/80 dark:text-blue-400 font-medium">
+                Pula: {balance.totalDays || 26} dn. | Użyte: {balance.usedDays || 0} dn.
+              </div>
+            </div>
+          </div>
+
+          {showTotalForm && (
+            <div className="pt-2 border-t border-blue-200 dark:border-blue-800/60 space-y-2 animate-in fade-in">
+              <label className="block text-[11px] font-bold text-blue-900 dark:text-blue-200">
+                Wpisz wymiar puli bieżącej (dni):
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  value={totalInput}
+                  onChange={e => setTotalInput(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-950 border border-blue-300 dark:border-blue-700 rounded-xl font-bold text-slate-800 dark:text-slate-100 text-xs"
+                />
+                <button
+                  onClick={handleSaveTotal}
+                  disabled={loading}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition-all cursor-pointer"
+                >
+                  Zapisz
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Year Badge */}
-      <div className="mt-4 text-xs text-gray-500 text-center">
-        Rok: {balance.year}
+      {/* INFORMACJA O PIERWSZEŃSTWIE ODILICZANIA */}
+      <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl flex items-center gap-2.5 text-xs text-emerald-800 dark:text-emerald-200 font-semibold">
+        <span className="text-lg flex-shrink-0">⚡</span>
+        <div>
+          <strong>Zasada rozliczania:</strong> Składany wniosek urlopowy schodzi w pierwszej kolejności z <strong>Urlopu Zaległego 2025 r.</strong>, a po jego wyczerpaniu z puli bieżącej.
+        </div>
       </div>
     </div>
   );

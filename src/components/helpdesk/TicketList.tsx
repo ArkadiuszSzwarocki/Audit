@@ -1,6 +1,5 @@
-'use client';
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { HelpDeskTicket } from '@/generated/prisma';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/hooks/useAuth';
@@ -82,6 +81,11 @@ const formatHistoryValue = (field: string, value: any) => {
 };
 
 export function TicketList() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const targetTicketId = searchParams.get('ticketId') || searchParams.get('ticket');
+  const targetToken = searchParams.get('token');
+
   const [tickets, setTickets] = useState<TicketWithUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,13 +106,95 @@ export function TicketList() {
     realizedAt: '',
   });
   const [chatMessage, setChatMessage] = useState('');
+  const [readTicketsMap, setReadTicketsMap] = useState<Record<string, number>>({});
+  const [managerCommentInput, setManagerCommentInput] = useState('');
+  const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
   const { user } = useAuth();
   const { showToast } = useToast();
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
+  const isManagementUser = ['ZARZAD', 'ZARZĄD', 'DIRECTOR', 'MANAGER', 'ADMIN'].includes(currentUserRole.toUpperCase());
+
   useEffect(() => {
     fetchTickets();
   }, []);
+
+  // Automatyczne otwieranie okna szczegółów zgłoszenia (modal) po wejściu z linku
+  useEffect(() => {
+    if (!targetTicketId) return;
+
+    const openTargetTicket = async () => {
+      const existingTicket = tickets.find(t => t.id === targetTicketId);
+      if (existingTicket) {
+        handleEditTicket(existingTicket);
+        return;
+      }
+
+      try {
+        const url = targetToken
+          ? `/api/helpdesk/tickets/${targetTicketId}?token=${encodeURIComponent(targetToken)}`
+          : `/api/helpdesk/tickets/${targetTicketId}`;
+
+        const res = await fetch(url, { credentials: 'include' });
+        if (res.ok) {
+          const ticketData = await res.json();
+          setSelectedTicket({
+            ...ticketData,
+            readByHelpDesk: true,
+          });
+          setEditForm({
+            status: ticketData.status,
+            estimatedDueDate: ticketData.estimatedDueDate ? new Date(ticketData.estimatedDueDate).toISOString().split('T')[0] : '',
+            resolutionNotes: ticketData.resolutionNotes || '',
+            readByHelpDesk: true,
+            realizationStartedAt: ticketData.realizationStartedAt ? new Date(ticketData.realizationStartedAt).toISOString().split('T')[0] : '',
+            realizedAt: ticketData.realizedAt ? new Date(ticketData.realizedAt).toISOString().split('T')[0] : '',
+          });
+          setManagerCommentInput(ticketData.managerComment || '');
+          setChatMessage('');
+          setShowEditModal(true);
+        }
+      } catch (err) {
+        console.error('Error opening target ticket modal:', err);
+      }
+    };
+
+    openTargetTicket();
+  }, [targetTicketId, targetToken, tickets.length]);
+
+  const handleCloseModal = () => {
+    setShowEditModal(false);
+    setSelectedTicket(null);
+    if (targetTicketId) {
+      router.replace('/helpdesk', { scroll: false });
+    }
+  };
+
+  useEffect(() => {
+    if (user?.id) {
+      try {
+        const saved = localStorage.getItem(`helpdesk_read_tickets_${user.id}`);
+        if (saved) {
+          setReadTicketsMap(JSON.parse(saved));
+        }
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  }, [user?.id]);
+
+  const markTicketAsReadLocal = (ticketId: string) => {
+    const now = Date.now();
+    setReadTicketsMap(prev => {
+      const updated = { ...prev, [ticketId]: now };
+      if (user?.id) {
+        try {
+          localStorage.setItem(`helpdesk_read_tickets_${user.id}`, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -146,30 +232,113 @@ export function TicketList() {
       return;
     }
 
-    setSelectedTicket(ticket);
+    markTicketAsReadLocal(ticket.id);
+
+    const shouldMarkRead = canManageTickets && !ticket.readByHelpDesk;
+
+    setSelectedTicket({
+      ...ticket,
+      readByHelpDesk: true,
+    });
     setEditForm({
       status: ticket.status,
       estimatedDueDate: ticket.estimatedDueDate ? new Date(ticket.estimatedDueDate).toISOString().split('T')[0] : '',
       resolutionNotes: ticket.resolutionNotes || '',
-      readByHelpDesk: ticket.readByHelpDesk || false,
+      readByHelpDesk: true,
       realizationStartedAt: ticket.realizationStartedAt ? new Date(ticket.realizationStartedAt).toISOString().split('T')[0] : '',
       realizedAt: ticket.realizedAt ? new Date(ticket.realizedAt).toISOString().split('T')[0] : '',
     });
+    setManagerCommentInput(ticket.managerComment || '');
     setChatMessage('');
     setShowEditModal(true);
+
+    if (shouldMarkRead) {
+      fetch(`/api/helpdesk/tickets/${ticket.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ readByHelpDesk: true }),
+      }).then(res => {
+        if (res.ok) {
+          setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, readByHelpDesk: true, readByHelpDeskAt: new Date() } : t));
+        }
+      }).catch(err => console.error('Error marking read:', err));
+    }
+  };
+
+  const handleManagementApproval = async (approved: boolean) => {
+    if (!selectedTicket) return;
+    setIsSubmittingDecision(true);
+
+    try {
+      const url = targetToken
+        ? `/api/helpdesk/tickets/${selectedTicket.id}/approve?token=${encodeURIComponent(targetToken)}`
+        : `/api/helpdesk/tickets/${selectedTicket.id}/approve`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          approved,
+          managerComment: managerCommentInput.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Nie udało się zapisać decyzji.');
+      }
+
+      const getUrl = targetToken
+        ? `/api/helpdesk/tickets/${selectedTicket.id}?token=${encodeURIComponent(targetToken)}`
+        : `/api/helpdesk/tickets/${selectedTicket.id}`;
+      const refreshedRes = await fetch(getUrl, { credentials: 'include' });
+      const updatedTicket = refreshedRes.ok ? await refreshedRes.json() : null;
+
+      if (updatedTicket) {
+        setSelectedTicket(updatedTicket);
+        setTickets(prev => prev.map(t => t.id === updatedTicket.id ? updatedTicket : t));
+      } else {
+        fetchTickets();
+      }
+
+      showToast(
+        approved ? '✅ Wniosek został zatwierdzony przez Zarząd!' : '❌ Wniosek został odrzucony przez Zarząd.',
+        approved ? 'success' : 'info'
+      );
+      handleCloseModal();
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsSubmittingDecision(false);
+    }
   };
 
   const handleSaveChanges = async (messageOverride?: string) => {
     if (!selectedTicket) return;
 
+    const isStatusChanging = editForm.status !== selectedTicket.status;
+    if (canManageTicketFields && isStatusChanging && !editForm.estimatedDueDate && !messageOverride) {
+      showToast('Podanie terminu realizacji (kalendarz) jest wymagane przy zmianie statusu.', 'error');
+      return;
+    }
+
+    const messageToSend = messageOverride ?? chatMessage.trim();
+    if (messageOverride === undefined && !messageToSend && !isStatusChanging && editForm.resolutionNotes === (selectedTicket.resolutionNotes || '')) {
+      handleCloseModal();
+      return;
+    }
+
+    // Natychmiastowe (0ms) czyszczenie pola tekstowego dla super-płynnego odczucia UI
+    setChatMessage('');
+
     try {
-      const meResponse = await fetch('/api/auth/check', { credentials: 'include' });
-      const meData = meResponse.ok ? await meResponse.json() : null;
-      const currentUserId = meData?.user?.id || user?.id;
+      const currentUserId = user?.id;
 
       const payload = {
         ...editForm,
-        message: messageOverride ?? chatMessage.trim(),
+        message: messageToSend,
         currentUserId,
       };
 
@@ -182,11 +351,6 @@ export function TicketList() {
         delete (payload as any).resolutionNotes;
       }
 
-      console.log('Sending PATCH request with:', {
-        ticketId: selectedTicket.id,
-        payload,
-      });
-
       const response = await fetch(`/api/helpdesk/tickets/${selectedTicket.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -194,49 +358,30 @@ export function TicketList() {
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) throw new Error('Failed to update ticket');
+      if (!response.ok) throw new Error('Nie udało się zaktualizować zgłoszenia');
 
       const updatedTicket = await response.json();
       setSelectedTicket(updatedTicket);
-      setChatMessage('');
+      setTickets(prev => prev.map(t => t.id === updatedTicket.id ? updatedTicket : t));
       showToast(messageOverride ? 'Wiadomość została wysłana do czatu.' : 'Zgłoszenie zostało zaktualizowane!', 'success');
-      fetchTickets();
+
+      if (!messageOverride) {
+        handleCloseModal();
+      }
     } catch (err: any) {
       showToast(err.message, 'error');
     }
   };
 
-  const filterTicketsByStatus = (source: TicketWithUser[]) => {
-    if (statusFilter === 'ALL') {
-      return source;
+  const pendingApprovalTickets = useMemo(() => {
+    let result = tickets.filter(ticket => ticket.type === 'PURCHASE' && ticket.status === 'PENDING_APPROVAL' && ticket.isApprovedByManager !== true);
+    if (statusFilter !== 'ALL') {
+      result = result.filter(ticket => ticket.status === statusFilter);
     }
+    return result;
+  }, [tickets, statusFilter]);
 
-    return source.filter(ticket => ticket.status === statusFilter);
-  };
-
-  const filterTicketsByDate = (source: TicketWithUser[]) => {
-    if (!dateFilter) {
-      return source;
-    }
-
-    const selectedDate = new Date(dateFilter);
-    if (Number.isNaN(selectedDate.getTime())) {
-      return source;
-    }
-
-    return source.filter(ticket => {
-      const createdAt = new Date(ticket.createdAt);
-      return createdAt.getFullYear() === selectedDate.getFullYear()
-        && createdAt.getMonth() === selectedDate.getMonth()
-        && createdAt.getDate() === selectedDate.getDate();
-    });
-  };
-
-  const pendingApprovalTickets = filterTicketsByStatus(
-    tickets.filter(ticket => ticket.type === 'PURCHASE' && ticket.status === 'PENDING_APPROVAL' && ticket.isApprovedByManager !== true)
-  );
-
-  const getFilteredTickets = () => {
+  const visibleTickets = useMemo(() => {
     let result = tickets;
 
     if (filter === 'PURCHASE') {
@@ -247,13 +392,25 @@ export function TicketList() {
       result = result.filter(ticket => ticket.type === 'PURCHASE' && ticket.status === 'PENDING_APPROVAL' && ticket.isApprovedByManager !== true);
     }
 
-    result = filterTicketsByStatus(result);
-    result = filterTicketsByDate(result);
+    if (statusFilter !== 'ALL') {
+      result = result.filter(ticket => ticket.status === statusFilter);
+    }
+
+    if (dateFilter) {
+      const selectedDate = new Date(dateFilter);
+      if (!Number.isNaN(selectedDate.getTime())) {
+        result = result.filter(ticket => {
+          const createdAt = new Date(ticket.createdAt);
+          return createdAt.getFullYear() === selectedDate.getFullYear()
+            && createdAt.getMonth() === selectedDate.getMonth()
+            && createdAt.getDate() === selectedDate.getDate();
+        });
+      }
+    }
 
     return result.filter(ticket => !pendingApprovalTickets.some(pending => pending.id === ticket.id) || filter === 'PENDING_APPROVAL');
-  };
+  }, [tickets, filter, statusFilter, dateFilter, pendingApprovalTickets]);
 
-  const visibleTickets = getFilteredTickets();
   const otherTickets = visibleTickets.filter(ticket => !pendingApprovalTickets.some(pending => pending.id === ticket.id));
   const isRestrictedHelpDeskUser = ['IT', 'IT HELP DESK', 'HELPDESK'].includes(currentUserRole);
   const statusChangeBlockedForHelpDesk = Boolean(
@@ -263,6 +420,16 @@ export function TicketList() {
     selectedTicket.status === 'PENDING_APPROVAL' &&
     selectedTicket.isApprovedByManager !== true
   );
+
+  const isPendingApprovalTicket = Boolean(
+    selectedTicket &&
+    selectedTicket.type === 'PURCHASE' &&
+    selectedTicket.status === 'PENDING_APPROVAL' &&
+    selectedTicket.isApprovedByManager !== true
+  );
+
+  const isTicketClosed = selectedTicket?.status === 'CLOSED';
+
   const listForCurrentFilter = filter === 'PENDING_APPROVAL'
     ? pendingApprovalTickets
     : filter === 'ALL'
@@ -285,6 +452,29 @@ export function TicketList() {
     }
   };
 
+  const checkUnreadMessage = (ticket: TicketWithUser) => {
+    const messages = ticket.history?.filter((entry: any) => entry.field === 'message') || [];
+    if (messages.length === 0) return false;
+
+    const latestMsg = messages[0];
+    const isFromOtherUser = latestMsg.user?.id !== user?.id && latestMsg.changedBy !== user?.id;
+    if (!isFromOtherUser) return false;
+
+    const latestMsgTime = new Date(latestMsg.createdAt).getTime();
+    const localReadTime = readTicketsMap[ticket.id] || 0;
+
+    const roleUpper = String(currentUserRole).toUpperCase();
+    const isHelpDesk = ['IT', 'IT HELP DESK', 'HELPDESK'].includes(roleUpper);
+    
+    if (isHelpDesk) {
+      const helpDeskReadTime = ticket.readByHelpDeskAt ? new Date(ticket.readByHelpDeskAt).getTime() : 0;
+      const effectiveReadTime = Math.max(localReadTime, helpDeskReadTime);
+      return latestMsgTime > effectiveReadTime;
+    }
+
+    return latestMsgTime > localReadTime;
+  };
+
   const renderTicketCard = (ticket: TicketWithUser) => (
     <div
       key={ticket.id}
@@ -305,6 +495,16 @@ export function TicketList() {
             <span className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-1 rounded">
               {TYPE_LABELS[ticket.type] || ticket.type}
             </span>
+            {checkUnreadMessage(ticket) && (
+              <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-300 dark:border-red-800 inline-flex items-center gap-1 animate-pulse">
+                <span>💬</span> Nowa wiadomość
+              </span>
+            )}
+            {ticket.type === 'PURCHASE' && ticket.status === 'PENDING_APPROVAL' && ticket.isApprovedByManager !== true && (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800 inline-flex items-center gap-1">
+                <span>⏳</span> Oczekuje na zarząd
+              </span>
+            )}
             {ticket.estimatedDueDate && (
               <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">
                 📅 {new Date(ticket.estimatedDueDate).toLocaleDateString('pl-PL')}
@@ -448,14 +648,14 @@ export function TicketList() {
       {/* Edit Modal */}
       {showEditModal && selectedTicket && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-5xl w-full p-6 md:p-8 max-h-[90vh] overflow-y-auto flex flex-col">
+            <div className="flex items-center justify-between mb-4 border-b border-slate-200 dark:border-slate-700 pb-4">
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
                 {canManageTicketFields ? 'Zarządzaj zgłoszeniem' : 'Szczegóły zgłoszenia'}
               </h2>
               <button
-                onClick={() => setShowEditModal(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                onClick={handleCloseModal}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -463,308 +663,403 @@ export function TicketList() {
               </button>
             </div>
 
-            <div className="space-y-6">
-              {/* Tytuł i typ */}
-              <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg">
-                <h3 className="font-semibold text-slate-900 dark:text-white mb-2">{selectedTicket.title}</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">{selectedTicket.description}</p>
-                <div className="flex gap-2">
-                  <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-1 rounded">
-                    {TYPE_LABELS[selectedTicket.type]}
-                  </span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                    {new Date(selectedTicket.createdAt).toLocaleDateString('pl-PL')}
-                  </span>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 my-2 flex-1">
+              {/* Lewa kolumna: Informacje i Zarządzanie statusami / datami */}
+              <div className="space-y-6">
+                {/* Tytuł i typ */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-2">{selectedTicket.title}</h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-3 whitespace-pre-wrap">{selectedTicket.description}</p>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <span className="text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-md">
+                      {TYPE_LABELS[selectedTicket.type]}
+                    </span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      Utworzono: {new Date(selectedTicket.createdAt).toLocaleDateString('pl-PL')}
+                    </span>
+                  </div>
                 </div>
-              </div>
 
-              {canManageTicketFields && (
-                <>
-                  {/* Status */}
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Status</label>
-                    <select
-                      value={editForm.status}
-                      onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                      disabled={statusChangeBlockedForHelpDesk}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {Object.entries(STATUS_LABELS).map(([key, { label }]) => (
-                        <option key={key} value={key}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                    {statusChangeBlockedForHelpDesk && (
-                      <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
-                        Status jest zablokowany do czasu zatwierdzenia przez zarząd. Możesz jednak dopisywać notatki i prowadzić rozmowę w tym zgłoszeniu.
+                {/* Informacja o zamknięciu zgłoszenia */}
+                {isTicketClosed && (
+                  <div className="bg-slate-100 dark:bg-slate-800/80 p-4 rounded-xl border border-slate-300 dark:border-slate-700 flex items-center gap-3">
+                    <span className="text-2xl">🔒</span>
+                    <div>
+                      <h4 className="font-bold text-slate-900 dark:text-white text-sm">Zgłoszenie zostało zamknięte</h4>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                        Zgłoszenie jest w stanie zamkniętym. Wszelka edycja pól oraz dodawanie wiadomości na czacie zostały zablokowane.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {isPendingApprovalTicket ? (
+                  <div className="bg-amber-50 dark:bg-amber-950/60 p-5 rounded-2xl border-2 border-amber-300 dark:border-amber-700 space-y-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">⚠️</span>
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-base">Wniosek Zakupowy oczekuje na decyzję Zarządu</h4>
+                        <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5">
+                          Zgłoszenie wymaga weryfikacji i akceptacji przez Zarząd przed przekazaniem do realizacji.
+                        </p>
+                      </div>
+                    </div>
+
+                    {isManagementUser ? (
+                      <div className="space-y-4 pt-3 border-t border-amber-200 dark:border-amber-800">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                            💬 Komentarz / Uzasadnienie decyzji (opcjonalnie)
+                          </label>
+                          <input
+                            type="text"
+                            value={managerCommentInput}
+                            onChange={(e) => setManagerCommentInput(e.target.value)}
+                            placeholder="Wpisz uwagi lub uzasadnienie decyzji..."
+                            className="w-full px-3.5 py-2.5 text-sm border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 pt-1">
+                          <button
+                            onClick={() => handleManagementApproval(true)}
+                            disabled={isSubmittingDecision}
+                            className="px-5 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-md transition-all text-sm flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <span>✅</span> Zatwierdź wniosek
+                          </button>
+                          <button
+                            onClick={() => handleManagementApproval(false)}
+                            disabled={isSubmittingDecision}
+                            className="px-5 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-md transition-all text-sm flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <span>❌</span> Odrzuć wniosek
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-900/40 p-3 rounded-lg border border-amber-200 dark:border-amber-800 font-medium">
+                        ⏳ Zgłoszenie oczekuje na decyzję Zarządu. Opcje realizacji zostaną odblokowane dla zespołu Help Desk po zatwierdzeniu.
                       </p>
                     )}
                   </div>
+                ) : (
+                  canManageTicketFields && (
+                    <div className="space-y-4 bg-slate-50/50 dark:bg-slate-800/30 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                      <h4 className="font-semibold text-slate-900 dark:text-white text-base">⚙️ Ustawienia realizacji</h4>
+                      
+                      {/* Status */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Status zgłoszenia</label>
+                        <select
+                          value={editForm.status}
+                          onChange={(e) => {
+                            const newStatus = e.target.value;
+                            const today = new Date().toISOString().split('T')[0];
+                            const autoSetStartDate = (newStatus === 'OPEN' || newStatus === 'IN_PROGRESS') && !editForm.realizationStartedAt;
+                            const autoSetRealizedDate = newStatus === 'CLOSED' && !editForm.realizedAt;
+                            setEditForm({
+                              ...editForm,
+                              status: newStatus,
+                              realizationStartedAt: autoSetStartDate ? today : editForm.realizationStartedAt,
+                              realizedAt: autoSetRealizedDate ? today : editForm.realizedAt,
+                            });
+                          }}
+                          disabled={statusChangeBlockedForHelpDesk || isTicketClosed}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed font-medium"
+                        >
+                          {Object.entries(STATUS_LABELS)
+                            .filter(([key]) => {
+                              if (isRestrictedHelpDeskUser && key === 'APPROVED') return false;
+                              if (key === 'PENDING_APPROVAL' && (selectedTicket?.status !== 'PENDING_APPROVAL' || editForm.status !== 'PENDING_APPROVAL')) return false;
+                              return true;
+                            })
+                            .map(([key, { label }]) => (
+                              <option key={key} value={key}>
+                                {label}
+                              </option>
+                            ))}
+                        </select>
+                        {statusChangeBlockedForHelpDesk && !isTicketClosed && (
+                          <p className="mt-2 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800">
+                            ⚠️ Zmiana statusu oraz przypisywanie dat są zablokowane do czasu zatwierdzenia przez zarząd. Możesz jednak dopisywać notatki i prowadzić rozmowę w tym zgłoszeniu.
+                          </p>
+                        )}
+                      </div>
 
-                  {/* Czas realizacji */}
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                      📅 Kalendarz
-                    </label>
-                    <input
-                      type="date"
-                      value={editForm.estimatedDueDate}
-                      onChange={(e) => setEditForm({ ...editForm, estimatedDueDate: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                    />
+                      {/* Czas realizacji */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                          📅 Szacowany termin realizacji (Kalendarz)
+                        </label>
+                        <input
+                          type="date"
+                          value={editForm.estimatedDueDate}
+                          onChange={(e) => setEditForm({ ...editForm, estimatedDueDate: e.target.value })}
+                          disabled={statusChangeBlockedForHelpDesk || isTicketClosed}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                        />
+                      </div>
+
+                      {/* Daty realizacji */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            🚀 Realizacja rozpoczęta
+                          </label>
+                          <input
+                            type="date"
+                            value={editForm.realizationStartedAt}
+                            onChange={(e) => setEditForm({ ...editForm, realizationStartedAt: e.target.value })}
+                            disabled={statusChangeBlockedForHelpDesk || isTicketClosed}
+                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            ✔️ Realizacja zakończona
+                          </label>
+                          <input
+                            type="date"
+                            value={editForm.realizedAt}
+                            onChange={(e) => setEditForm({ ...editForm, realizedAt: e.target.value })}
+                            disabled={statusChangeBlockedForHelpDesk || isTicketClosed}
+                            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Status odczytania */}
+                      <div className="pt-2">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editForm.readByHelpDesk}
+                            onChange={(e) => setEditForm({ ...editForm, readByHelpDesk: e.target.checked })}
+                            disabled={isTicketClosed}
+                            className="w-4 h-4 cursor-pointer disabled:opacity-60"
+                          />
+                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                            👀 Przeczytane przez Help Desk
+                          </span>
+                        </label>
+                        {selectedTicket?.readByHelpDeskAt && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            Przeczytano: {new Date(selectedTicket.readByHelpDeskAt).toLocaleDateString('pl-PL', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                )}
+
+                {/* Informacja o zgodzie zarządu */}
+                {selectedTicket?.type === 'PURCHASE' && (
+                  <div className={`p-3.5 rounded-xl border ${selectedTicket.isApprovedByManager === true
+                    ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
+                    : selectedTicket.isApprovedByManager === false
+                      ? 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
+                      : 'bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300'}`}>
+                    <p className="text-sm font-semibold">
+                      {selectedTicket.isApprovedByManager === true
+                        ? '✅ Zgoda zarządu na realizację: przyznana'
+                        : selectedTicket.isApprovedByManager === false
+                          ? '❌ Zgoda zarządu na realizację: odrzucona'
+                          : '⏳ Zgoda zarządu na realizację: oczekuje'}
+                    </p>
+                    {selectedTicket.approvedBy && (
+                      <p className="text-xs mt-1">
+                        Osoba decydująca: <strong>{selectedTicket.approvedBy.name}</strong>
+                        {selectedTicket.approvalDate && (
+                          <> • {new Date(selectedTicket.approvalDate).toLocaleDateString('pl-PL')}</>
+                        )}
+                      </p>
+                    )}
+                    {selectedTicket.managerComment && (
+                      <p className="text-xs mt-1">
+                        Komentarz: <strong>{selectedTicket.managerComment}</strong>
+                      </p>
+                    )}
                   </div>
-                </>
-              )}
+                )}
 
-              {/* Chat w zgłoszeniu */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  💬 Czat w zgłoszeniu
-                </label>
+                {/* Przypisanie */}
+                {selectedTicket?.assignedTo && (
+                  <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3 rounded-xl">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      🎯 Przypisane do: <strong>{selectedTicket.assignedTo.name}</strong>
+                      {selectedTicket.assignedAt && (
+                        <>, {new Date(selectedTicket.assignedAt).toLocaleDateString('pl-PL')}</>
+                      )}
+                    </p>
+                  </div>
+                )}
 
-                <div className="space-y-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-3">
-                  <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-                    {selectedTicket?.history?.filter((entry: any) => entry.field === 'message').length ? (
-                      selectedTicket.history
-                        .filter((entry: any) => entry.field === 'message')
-                        .slice()
-                        .reverse()
+                {selectedTicket?.assignedBy && (
+                  <div className="bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 p-3 rounded-xl">
+                    <p className="text-sm text-purple-700 dark:text-purple-300">
+                      👤 Przypisane przez: <strong>{selectedTicket.assignedBy.name}</strong>
+                    </p>
+                  </div>
+                )}
+
+                {editForm.status === 'CLOSED' && selectedTicket.closedAt && (
+                  <div className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-xl">
+                    <p className="text-sm text-slate-700 dark:text-slate-300">
+                      ✅ Zgłoszenie zostało zamknięte: {new Date(selectedTicket.closedAt).toLocaleDateString('pl-PL')}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Prawa kolumna: Czat i Historia zmian */}
+              <div className="space-y-6 flex flex-col justify-between">
+                {/* Chat w zgłoszeniu */}
+                <div className="flex-1 flex flex-col">
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                    💬 Czat w zgłoszeniu
+                  </label>
+
+                  <div className="space-y-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-3 flex-1 flex flex-col justify-between">
+                    <div className="max-h-72 overflow-y-auto space-y-2 pr-1 flex-1">
+                      {selectedTicket?.history?.filter((entry: any) => entry.field === 'message').length ? (
+                        selectedTicket.history
+                          .filter((entry: any) => entry.field === 'message')
+                          .slice()
+                          .reverse()
+                          .map((entry: any) => {
+                            const isOwnMessage = entry.user?.id === user?.id;
+                            return (
+                              <div
+                                key={entry.id}
+                                className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                              >
+                                <div
+                                  className={`max-w-[85%] rounded-2xl border px-3 py-2 ${isOwnMessage
+                                    ? 'bg-brand-600 text-white border-brand-600'
+                                    : 'bg-white dark:bg-slate-900/70 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}
+                                >
+                                  <div className={`flex items-center justify-between gap-2 text-[11px] mb-1 ${isOwnMessage ? 'text-brand-100' : 'text-slate-500 dark:text-slate-400'}`}>
+                                    <span className="font-semibold">
+                                      {isOwnMessage
+                                        ? (user?.login || user?.name || 'Ty')
+                                        : ((entry.user?.login || entry.user?.name || '').trim() || 'Nieznany')}
+                                    </span>
+                                    <span>
+                                      {new Date(entry.createdAt).toLocaleString('pl-PL', {
+                                        dateStyle: 'short',
+                                        timeStyle: 'short',
+                                      })}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm whitespace-pre-wrap">
+                                    {entry.newValue}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })
+                      ) : (
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          Brak wiadomości w czacie. Napisz pierwszą wiadomość do współpracowników lub zarządu.
+                        </p>
+                      )}
+                      <div ref={chatEndRef} />
+                    </div>
+
+                    <div className="pt-2 space-y-2">
+                      <textarea
+                        value={chatMessage}
+                        onChange={(e) => setChatMessage(e.target.value)}
+                        disabled={isTicketClosed}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            if (chatMessage.trim() && !isTicketClosed) {
+                              handleSaveChanges(chatMessage.trim());
+                            }
+                          }
+                        }}
+                        rows={2}
+                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                        placeholder={isTicketClosed ? "🔒 Zgłoszenie zostało zamknięte. Czat jest zablokowany." : "Napisz wiadomość w czacie..."}
+                      />
+
+                      <button
+                        onClick={() => handleSaveChanges(chatMessage.trim())}
+                        disabled={!chatMessage.trim() || isTicketClosed}
+                        className="w-full px-4 py-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                      >
+                        <span>💬</span> Wyślij wiadomość czatu
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Historia zmian */}
+                {selectedTicket?.history && selectedTicket.history.filter((entry: any) => entry.field !== 'message').length > 0 && (
+                  <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                    <h4 className="font-semibold text-slate-900 dark:text-white mb-2 text-sm">📋 Historia zmian statusów i pól</h4>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {selectedTicket.history
+                        .filter((entry: any) => entry.field !== 'message')
                         .map((entry: any) => {
-                          const isOwnMessage = entry.user?.id === user?.id;
+                          const fieldLabel = formatHistoryFieldLabel(entry.field);
+                          const oldValue = formatHistoryValue(entry.field, entry.oldValue);
+                          const newValue = formatHistoryValue(entry.field, entry.newValue);
+
                           return (
                             <div
                               key={entry.id}
-                              className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                              className="text-xs bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-200 dark:border-slate-700"
                             >
-                              <div
-                                className={`max-w-[85%] rounded-2xl border px-3 py-2 ${isOwnMessage
-                                  ? 'bg-brand-600 text-white border-brand-600'
-                                  : 'bg-white dark:bg-slate-900/70 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}
-                              >
-                                <div className={`flex items-center justify-between gap-2 text-[11px] mb-1 ${isOwnMessage ? 'text-brand-100' : 'text-slate-500 dark:text-slate-400'}`}>
-                                  <span className="font-semibold">
-                                    {isOwnMessage
-                                      ? (user?.login || user?.name || 'Ty')
-                                      : ((entry.user?.login || entry.user?.name || '').trim() || 'Nieznany')}
-                                  </span>
-                                  <span>
-                                    {new Date(entry.createdAt).toLocaleString('pl-PL', {
-                                      dateStyle: 'short',
-                                      timeStyle: 'short',
-                                    })}
-                                  </span>
-                                </div>
-                                <p className="text-sm whitespace-pre-wrap">
-                                  {entry.newValue}
-                                </p>
+                              <div className="font-semibold text-slate-700 dark:text-slate-300">
+                                {entry.user?.name || 'Nieznany'} • {new Date(entry.createdAt).toLocaleDateString('pl-PL')}
+                              </div>
+                              <div className="text-slate-600 dark:text-slate-400 mt-1">
+                                <strong>{fieldLabel}:</strong>{' '}
+                                <span className="line-through text-red-600 dark:text-red-400">
+                                  {oldValue}
+                                </span>
+                                {' → '}
+                                <span className="text-green-600 dark:text-green-400">
+                                  {newValue}
+                                </span>
                               </div>
                             </div>
                           );
-                        })
-                    ) : (
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Brak wiadomości w czacie. Napisz pierwszą wiadomość do współpracowników lub zarządu.
-                      </p>
-                    )}
-                    <div ref={chatEndRef} />
-                  </div>
-
-                  <textarea
-                    value={chatMessage}
-                    onChange={(e) => setChatMessage(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        if (chatMessage.trim()) {
-                          handleSaveChanges(chatMessage.trim());
-                        }
-                      }
-                    }}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                    placeholder="Napisz wiadomość do zespołu lub zarządu..."
-                  />
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleSaveChanges(chatMessage.trim())}
-                      disabled={!chatMessage.trim()}
-                      className="flex-1 px-4 py-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
-                    >
-                      Wyślij wiadomość
-                    </button>
-                    <button
-                      onClick={() => handleSaveChanges()}
-                      className="flex-1 px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-900 dark:text-white font-semibold rounded-lg transition-colors"
-                    >
-                      Zapisz inne zmiany
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {canManageTicketFields && (
-                <>
-                  {/* Realizacja */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                        🚀 Realizacja rozpoczęta
-                      </label>
-                      <input
-                        type="date"
-                        value={editForm.realizationStartedAt}
-                        onChange={(e) => setEditForm({ ...editForm, realizationStartedAt: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                        ✔️ Realizacja zakończona
-                      </label>
-                      <input
-                        type="date"
-                        value={editForm.realizedAt}
-                        onChange={(e) => setEditForm({ ...editForm, realizedAt: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Status odczytania */}
-                  <div>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editForm.readByHelpDesk}
-                        onChange={(e) => setEditForm({ ...editForm, readByHelpDesk: e.target.checked })}
-                        className="w-4 h-4 cursor-pointer"
-                      />
-                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                        👀 Przeczytane przez Help Desk
-                      </span>
-                    </label>
-                    {selectedTicket?.readByHelpDeskAt && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        Przeczytano: {new Date(selectedTicket.readByHelpDeskAt).toLocaleDateString('pl-PL', {
-                          year: 'numeric',
-                          month: '2-digit',
-                          day: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
                         })}
-                      </p>
-                    )}
+                    </div>
                   </div>
-                </>
-              )}
-
-              {/* Historia zmian */}
-              {selectedTicket?.history && selectedTicket.history.filter((entry: any) => entry.field !== 'message').length > 0 && (
-                <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
-                  <h4 className="font-semibold text-slate-900 dark:text-white mb-3">📋 Historia zmian statusów i pól</h4>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {selectedTicket.history
-                      .filter((entry: any) => entry.field !== 'message')
-                      .map((entry: any) => {
-                        const fieldLabel = formatHistoryFieldLabel(entry.field);
-                        const oldValue = formatHistoryValue(entry.field, entry.oldValue);
-                        const newValue = formatHistoryValue(entry.field, entry.newValue);
-
-                        return (
-                          <div
-                            key={entry.id}
-                            className="text-xs bg-slate-50 dark:bg-slate-800/50 p-2 rounded border border-slate-200 dark:border-slate-700"
-                          >
-                            <div className="font-semibold text-slate-700 dark:text-slate-300">
-                              {entry.user?.name || 'Nieznany'} • {new Date(entry.createdAt).toLocaleDateString('pl-PL')}
-                            </div>
-                            <div className="text-slate-600 dark:text-slate-400 mt-1">
-                              <strong>{fieldLabel}:</strong>{' '}
-                              <span className="line-through text-red-600 dark:text-red-400">
-                                {oldValue}
-                              </span>
-                              {' → '}
-                              <span className="text-green-600 dark:text-green-400">
-                                {newValue}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
-              )}
-
-              {/* Informacja o zgodzie zarządu */}
-              {selectedTicket?.type === 'PURCHASE' && (
-                <div className={`p-3 rounded-lg border ${selectedTicket.isApprovedByManager === true
-                  ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
-                  : selectedTicket.isApprovedByManager === false
-                    ? 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
-                    : 'bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300'}`}>
-                  <p className="text-sm font-semibold">
-                    {selectedTicket.isApprovedByManager === true
-                      ? '✅ Zgoda zarządu na realizację: przyznana'
-                      : selectedTicket.isApprovedByManager === false
-                        ? '❌ Zgoda zarządu na realizację: odrzucona'
-                        : '⏳ Zgoda zarządu na realizację: oczekuje'}
-                  </p>
-                  {selectedTicket.approvedBy && (
-                    <p className="text-xs mt-1">
-                      Osoba decydująca: <strong>{selectedTicket.approvedBy.name}</strong>
-                      {selectedTicket.approvalDate && (
-                        <> • {new Date(selectedTicket.approvalDate).toLocaleDateString('pl-PL')}</>
-                      )}
-                    </p>
-                  )}
-                  {selectedTicket.managerComment && (
-                    <p className="text-xs mt-1">
-                      Komentarz: <strong>{selectedTicket.managerComment}</strong>
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Przypisanie */}
-              {selectedTicket?.assignedTo && (
-                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3 rounded-lg">
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
-                    🎯 Przypisane do: <strong>{selectedTicket.assignedTo.name}</strong>
-                    {selectedTicket.assignedAt && (
-                      <>, {new Date(selectedTicket.assignedAt).toLocaleDateString('pl-PL')}</>
-                    )}
-                  </p>
-                </div>
-              )}
-
-              {selectedTicket?.assignedBy && (
-                <div className="bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 p-3 rounded-lg">
-                  <p className="text-sm text-purple-700 dark:text-purple-300">
-                    👤 Przypisane przez: <strong>{selectedTicket.assignedBy.name}</strong>
-                  </p>
-                </div>
-              )}
-
-              {/* Przycisk zamknięcia */}
-              {editForm.status === 'CLOSED' && selectedTicket.closedAt && (
-                <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 p-3 rounded-lg">
-                  <p className="text-sm text-green-700 dark:text-green-300">
-                    ✅ Zgłoszenie zostało zamknięte: {new Date(selectedTicket.closedAt).toLocaleDateString('pl-PL')}
-                  </p>
-                </div>
-              )}
-
-              {/* Przyciski akcji */}
-              <div className="flex gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
-                <button
-                  onClick={() => setShowEditModal(false)}
-                  className="flex-1 px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-900 dark:text-white font-semibold rounded-lg transition-colors"
-                >
-                  Zamknij
-                </button>
+                )}
               </div>
+            </div>
+
+            {/* Stopka z przyciskami głównymi */}
+            <div className="flex items-center justify-end gap-3 pt-4 mt-2 border-t border-slate-200 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="px-5 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-900 dark:text-white font-semibold rounded-xl transition-colors"
+              >
+                Zamknij
+              </button>
+              {!isTicketClosed && canManageTicketFields && (
+                <button
+                  type="button"
+                  onClick={() => handleSaveChanges()}
+                  className="px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl transition-colors shadow-md flex items-center gap-2"
+                >
+                  <span>💾</span>
+                  <span>Zapisz zmiany</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

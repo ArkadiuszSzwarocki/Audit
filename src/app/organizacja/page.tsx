@@ -1,18 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useOrganization } from '@/hooks/useOrganization';
 import { DepartmentTree } from '@/components/organization/DepartmentTree';
 import { CreateDepartmentForm } from '@/components/organization/CreateDepartmentForm';
 import { EmployeeAssignmentForm } from '@/components/organization/EmployeeAssignmentForm';
 import { CreatePositionForm } from '@/components/organization/CreatePositionForm';
-import { useState as useStateAlias } from 'react';
+import { useToast } from '@/context/ToastContext';
 import { Department } from '@/hooks/useOrganization';
 
 export default function OrganizacjaPage() {
+  const router = useRouter();
   const { user } = useAuth();
-  const { fetchStructure, fetchPositions, structure, positions } = useOrganization();
+  const { fetchStructure, fetchPositions, structure, positions, loading, error } = useOrganization();
+  const { showToast, showConfirm } = useToast();
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
 
   useEffect(() => {
@@ -22,34 +25,120 @@ export default function OrganizacjaPage() {
     }
   }, [user]);
 
+  // Keep selected department synchronized with latest structure data
+  useEffect(() => {
+    if (selectedDepartment && structure.length > 0) {
+      const findInTree = (list: Department[], id: string): Department | null => {
+        for (const item of list) {
+          if (item.id === id) return item;
+          if (item.childDepartments && item.childDepartments.length > 0) {
+            const found = findInTree(item.childDepartments, id);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+      const updated = findInTree(structure, selectedDepartment.id);
+      if (updated) {
+        setSelectedDepartment(updated);
+      }
+    }
+  }, [structure]);
+
+  const handleUnassignUser = async (userId: string, userName: string) => {
+    showConfirm({
+      title: 'Odpięcie pracownika z departamentu',
+      message: `Czy na pewno chcesz odpiąć użytkownika "${userName}" z departamentu "${selectedDepartment?.name}"?`,
+      confirmText: 'Odepnij pracownika',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const res = await fetch('/api/organization', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'unassign-employee',
+              data: { userId },
+            }),
+          });
+          if (res.ok) {
+            showToast('✅ Pracownik został odpięty', 'success');
+            await fetchStructure();
+          } else {
+            showToast('❌ Błąd podczas odpisywania pracownika', 'error');
+          }
+        } catch (err) {
+          showToast('❌ Błąd sieciowe podczas odpisywania', 'error');
+        }
+      },
+    });
+  };
+
+  const handleDeleteDepartment = async (deptId: string, deptName: string) => {
+    showConfirm({
+      title: 'Usuwanie Departamentu',
+      message: `Czy na pewno chcesz usunąć departament "${deptName}"? Pracownicy przypisani do niego zostaną bez przypisanego działu.`,
+      confirmText: 'Usuń departament',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const res = await fetch('/api/organization', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'delete-department',
+              data: { departmentId: deptId },
+            }),
+          });
+          if (res.ok) {
+            showToast('✅ Departament usunięty', 'success');
+            setSelectedDepartment(null);
+            await fetchStructure();
+          } else {
+            showToast('❌ Nie udało się usunąć departamentu', 'error');
+          }
+        } catch (err) {
+          showToast('❌ Błąd podczas usuwania', 'error');
+        }
+      },
+    });
+  };
+
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center text-gray-600 text-lg">
-          Zaloguj się, aby zarządzać strukturą organizacyjną.
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-950">
+        <div className="text-center text-slate-600 dark:text-slate-400 text-lg font-bold">
+          Zaloguj się, aby zarządzać strukturą organizacyjną fabryki.
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 sm:p-6 space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* Nagłówek */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            🏢 Struktura Organizacyjna
-          </h1>
-          <p className="text-gray-600">
-            Zarządzaj departamentami, stanowiskami i hierarchią kierowników
-          </p>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              <span>🏢</span> Drzewo Organizacyjne Fabryki
+            </h1>
+            <p className="text-slate-500 text-xs sm:text-sm font-semibold mt-1">
+              Stwórz strukturę działów fabrycznych, wyznaczaj kierowników i przypisuj istniejących pracowników z bazy danych
+            </p>
+          </div>
         </div>
 
         {/* Layout: Drzewo + Szczegóły */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Lewa kolumna - Drzewo departamentów */}
           <div className="lg:col-span-2">
-            <DepartmentTree onSelectDepartment={setSelectedDepartment} />
+            <DepartmentTree
+              structure={structure}
+              loading={loading}
+              error={error}
+              onSelectDepartment={setSelectedDepartment}
+            />
           </div>
 
           {/* Prawa kolumna - Szczegóły i akcje */}
@@ -64,86 +153,99 @@ export default function OrganizacjaPage() {
 
             {/* Szczegóły wybranego departamentu */}
             {selectedDepartment && (
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">📋 Szczegóły Departamentu</h3>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl p-6 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <span>📋</span> Szczegóły Departamentu
+                  </h3>
+                  <button
+                    onClick={() => handleDeleteDepartment(selectedDepartment.id, selectedDepartment.name)}
+                    className="px-2.5 py-1 text-xs font-extrabold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-all cursor-pointer border border-red-200 dark:border-red-900"
+                  >
+                    🗑️ Usuń Dział
+                  </button>
+                </div>
 
-                <div className="space-y-3">
+                <button
+                  onClick={() => router.push(`/organizacja/${selectedDepartment.id}`)}
+                  className="w-full py-2.5 px-4 bg-brand-600 hover:bg-brand-500 text-white font-black rounded-2xl text-xs transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>🌳 Otwórz Ścieżkę Zarządzania (od Zarządu do Operatorów) →</span>
+                </button>
+
+                <div className="space-y-3 text-sm">
                   <div>
-                    <div className="text-sm text-gray-600">Nazwa</div>
-                    <div className="font-semibold text-gray-900">{selectedDepartment.name}</div>
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nazwa Działu</div>
+                    <div className="font-extrabold text-slate-800 dark:text-slate-100 text-base">{selectedDepartment.name}</div>
                   </div>
 
                   {selectedDepartment.description && (
                     <div>
-                      <div className="text-sm text-gray-600">Opis</div>
-                      <div className="text-gray-700">{selectedDepartment.description}</div>
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Opis</div>
+                      <div className="text-slate-600 dark:text-slate-300 font-medium">{selectedDepartment.description}</div>
                     </div>
                   )}
 
-                  <div>
-                    <div className="text-sm text-gray-600">Tryb zmian</div>
-                    <div className="font-semibold text-gray-900">
-                      {selectedDepartment.shiftMode === 1 ? '📋 1 zmiana' : `🏭 ${selectedDepartment.shiftMode} zmianowy`}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tryb pracy</div>
+                      <div className="font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">
+                        {selectedDepartment.shiftMode === 1 ? '📋 1 zmiana (Administracja)' : `🏭 ${selectedDepartment.shiftMode}-zmianowy (Produkcja)`}
+                      </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <div className="text-sm text-gray-600">Kierownik</div>
-                    <div className="font-semibold text-gray-900">
-                      {selectedDepartment.head ? (
-                        <span>{selectedDepartment.head.name} ({selectedDepartment.head.login})</span>
-                      ) : (
-                        <span className="text-red-600">❌ Brak kierownika</span>
-                      )}
+                    <div>
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Kierownik Działu</div>
+                      <div className="font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">
+                        {selectedDepartment.head ? (
+                          <span className="text-amber-700 dark:text-amber-400">👑 {selectedDepartment.head.name} ({selectedDepartment.head.login})</span>
+                        ) : (
+                          <span className="text-red-500 font-semibold">❌ Brak kierownika</span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   {selectedDepartment.parentDepartment && (
                     <div>
-                      <div className="text-sm text-gray-600">Departament nadrzędny</div>
-                      <div className="font-semibold text-gray-900">↑ {selectedDepartment.parentDepartment.name}</div>
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Departament nadrzędny</div>
+                      <div className="font-bold text-brand-600 dark:text-brand-400">↑ {selectedDepartment.parentDepartment.name}</div>
                     </div>
                   )}
 
-                  {selectedDepartment.users && selectedDepartment.users.length > 0 && (
-                    <div>
-                      <div className="text-sm text-gray-600">Pracownicy ({selectedDepartment.users.length})</div>
-                      <ul className="mt-2 space-y-1">
-                        {selectedDepartment.users.map(user => (
-                          <li key={user.id} className="text-sm px-2 py-1 bg-blue-50 rounded">
-                            {user.name} ({user.login})
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <div className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
+                      👥 Przypisani Pracownicy w Bazie ({selectedDepartment.users ? selectedDepartment.users.length : 0})
+                    </div>
+
+                    {!selectedDepartment.users || selectedDepartment.users.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic">Brak przypisanych pracowników. Użyj formularza poniżej, aby przypisać z bazy danych.</p>
+                    ) : (
+                      <ul className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        {selectedDepartment.users.map(u => (
+                          <li key={u.id} className="flex items-center justify-between text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-100 dark:border-slate-700">
+                            <div>
+                              <span className="font-bold text-slate-800 dark:text-slate-100">👤 {u.name}</span>
+                              <span className="ml-1.5 text-slate-400 font-medium">({u.login})</span>
+                              {u.role && <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 rounded font-bold text-[10px]">{u.role}</span>}
+                            </div>
+                            <button
+                              onClick={() => handleUnassignUser(u.id, u.name)}
+                              className="text-slate-400 hover:text-red-500 font-bold px-1.5 py-0.5 rounded"
+                              title="Odepnij pracownika"
+                            >
+                              ✕
+                            </button>
                           </li>
                         ))}
                       </ul>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Stanowiska */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">👔 Stanowiska</h3>
-              
-              {positions.length === 0 ? (
-                <p className="text-gray-500 text-sm">Brak stanowisk. Dodaj pierwsze!</p>
-              ) : (
-                <ul className="space-y-2">
-                  {positions
-                    .sort((a, b) => a.level - b.level)
-                    .map(pos => (
-                      <li key={pos.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                        <div>
-                          <div className="font-semibold text-gray-900">{pos.name}</div>
-                          <div className="text-xs text-gray-500">Poziom {pos.level}</div>
-                        </div>
-                      </li>
-                    ))}
-                </ul>
-              )}
-            </div>
-
-            {/* Przypisanie Pracownika */}
+            {/* Przypisanie Pracownika z Bazy */}
             <EmployeeAssignmentForm
               selectedDepartment={selectedDepartment || undefined}
               onAssignmentComplete={() => {
@@ -157,45 +259,6 @@ export default function OrganizacjaPage() {
                 fetchPositions();
               }}
             />
-          </div>
-        </div>
-
-        {/* Informacje o hierarchii */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-blue-600">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">ℹ️ Jak to działa?</h2>
-            <ul className="space-y-2 text-gray-700 text-sm">
-              <li>✅ Departamenty mogą być zagnieżdżone (parent-child)</li>
-              <li>✅ Każdy departament ma kierownika</li>
-              <li>✅ Pracownicy mają przypisanego kierownika</li>
-              <li>✅ Urlopy przesyłane są w górę hierarchii</li>
-              <li>✅ Każdy poziom ma inny proces zatwierdzania</li>
-            </ul>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-green-600">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">🔗 Łańcuch Zatwierdzania</h2>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">👤</span>
-                <span>Pracownik</span>
-              </div>
-              <div className="flex justify-center text-gray-400">↓</div>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">📋</span>
-                <span>Kierownik bezpośredni</span>
-              </div>
-              <div className="flex justify-center text-gray-400">↓</div>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">🏢</span>
-                <span>Kierownik Działu</span>
-              </div>
-              <div className="flex justify-center text-gray-400">↓</div>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">👑</span>
-                <span>Dyrektor/Zarząd</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>

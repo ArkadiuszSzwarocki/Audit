@@ -131,6 +131,14 @@ export async function GET() {
       select: {
         bhpTrainingDueDate: true,
         dismissedBhpNoticeThreshold: true,
+        responsibleArea: {
+          select: {
+            id: true,
+            name: true,
+            shiftMode: true,
+            parentAreaId: true,
+          },
+        },
         trainings: {
           include: {
             trainingType: true,
@@ -141,6 +149,12 @@ export async function GET() {
 
     return NextResponse.json({
       user,
+      department: dbUser?.responsibleArea ? {
+        id: dbUser.responsibleArea.id,
+        name: dbUser.responsibleArea.name,
+        shiftMode: dbUser.responsibleArea.shiftMode ?? 3,
+        parentDepartmentId: dbUser.responsibleArea.parentAreaId || null,
+      } : null,
       assignedTasksCount,
       assignedFaultsCount,
       submittedKaizensCount,

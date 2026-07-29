@@ -21,6 +21,7 @@ export interface Department {
     id: string;
     name: string;
     login: string;
+    email?: string;
   };
   parentDepartment?: {
     id: string;
@@ -31,6 +32,8 @@ export interface Department {
     id: string;
     name: string;
     login: string;
+    role?: string;
+    email?: string;
   }>;
 }
 

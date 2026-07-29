@@ -141,6 +141,11 @@ export function LeaveRequestModal({
             </div>
           </div>
 
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center gap-2">
+            <span>⚡</span>
+            <span>Wniosek urlopowy rozliczany jest w pierwszej kolejności z <strong>Urlopu Zaległego z 2025 r.</strong></span>
+          </div>
+
           {/* Typ urlopu */}
           <div>
             <label className="block text-sm font-semibold text-gray-900 mb-3">

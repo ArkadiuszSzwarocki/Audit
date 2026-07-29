@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLeaveReports } from '@/hooks/useLeaveReports';
 import { useToast } from '@/context/ToastContext';
+import { printLeaveReport } from '@/utils/leaveReportPrintBuilder';
 
 export function LeaveReportsView() {
   const { showToast } = useToast();
@@ -29,46 +30,43 @@ export function LeaveReportsView() {
     loadReports();
   }, [selectedYear]);
 
+  const extractArray = (res: any): any[] => {
+    if (!res || !res.success || !res.data) return [];
+    if (Array.isArray(res.data.data)) return res.data.data;
+    if (Array.isArray(res.data)) return res.data;
+    return [];
+  };
+
   const loadReports = async () => {
-    // Załaduj raport wybranej karty
     if (activeTab === 'employees') {
       const result = await fetchEmployeeUtilization(selectedYear);
-      if (result.success) {
-        setEmployeeData(result.data.data || []);
-      }
+      setEmployeeData(extractArray(result));
     } else if (activeTab === 'departments') {
       const result = await fetchDepartmentSummary(selectedYear);
-      if (result.success) {
-        setDepartmentData(result.data.data || []);
-      }
+      setDepartmentData(extractArray(result));
     } else if (activeTab === 'monthly') {
       const result = await fetchMonthlyTrend(selectedYear);
-      if (result.success) {
-        setMonthlyData(result.data.data || []);
-      }
+      setMonthlyData(extractArray(result));
     } else if (activeTab === 'types') {
       const result = await fetchLeaveTypes(selectedYear);
-      if (result.success) {
-        setTypesData(result.data.data || []);
-      }
+      setTypesData(extractArray(result));
     }
   };
 
   const handleTabChange = async (tab: typeof activeTab) => {
     setActiveTab(tab);
-    
     if (tab === 'employees') {
       const result = await fetchEmployeeUtilization(selectedYear);
-      if (result.success) setEmployeeData(result.data.data || []);
+      setEmployeeData(extractArray(result));
     } else if (tab === 'departments') {
       const result = await fetchDepartmentSummary(selectedYear);
-      if (result.success) setDepartmentData(result.data.data || []);
+      setDepartmentData(extractArray(result));
     } else if (tab === 'monthly') {
       const result = await fetchMonthlyTrend(selectedYear);
-      if (result.success) setMonthlyData(result.data.data || []);
+      setMonthlyData(extractArray(result));
     } else if (tab === 'types') {
       const result = await fetchLeaveTypes(selectedYear);
-      if (result.success) setTypesData(result.data.data || []);
+      setTypesData(extractArray(result));
     }
   };
 
@@ -88,6 +86,17 @@ export function LeaveReportsView() {
     } else {
       showToast(`Błąd eksportu: ${result.error}`, 'error');
     }
+  };
+
+  const handlePrintPdf = () => {
+    printLeaveReport({
+      year: selectedYear,
+      reportType: activeTab,
+      employeeData,
+      departmentData,
+      monthlyData,
+      typesData,
+    });
   };
 
   return (
@@ -179,13 +188,20 @@ export function LeaveReportsView() {
       {/* Employees Tab */}
       {activeTab === 'employees' && !loading && (
         <div>
-          <div className="mb-6 flex justify-end">
+          <div className="mb-6 flex items-center justify-end gap-2">
+            <button
+              onClick={handlePrintPdf}
+              disabled={employeeData.length === 0}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-sm transition-all shadow disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+            >
+              <span>📄 Pobierz do PDF</span>
+            </button>
             <button
               onClick={handleExportEmployees}
               disabled={employeeData.length === 0}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 text-sm font-medium"
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-sm transition-all shadow disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
             >
-              📥 Pobierz CSV
+              <span>📥 Pobierz CSV</span>
             </button>
           </div>
           
@@ -203,7 +219,7 @@ export function LeaveReportsView() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {employeeData.map((row) => (
+                  {Array.isArray(employeeData) && employeeData.map((row) => (
                     <tr key={row.id} className="hover:bg-gray-50">
                       <td className="px-6 py-3 text-sm text-gray-900">
                         <div className="font-medium">{row.employeeName}</div>
@@ -250,52 +266,67 @@ export function LeaveReportsView() {
       {/* Departments Tab */}
       {activeTab === 'departments' && !loading && (
         <div>
-          <div className="mb-6 flex justify-end">
+          <div className="mb-6 flex items-center justify-end gap-2">
+            <button
+              onClick={handlePrintPdf}
+              disabled={departmentData.length === 0}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-sm transition-all shadow disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+            >
+              <span>📄 Pobierz do PDF</span>
+            </button>
             <button
               onClick={handleExportDepartments}
               disabled={departmentData.length === 0}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 text-sm font-medium"
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-sm transition-all shadow disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
             >
-              📥 Pobierz CSV
+              <span>📥 Pobierz CSV</span>
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {departmentData.map((dept) => (
-              <div key={dept.departmentId} className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">{dept.departmentName}</h3>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-gray-600">Pracownicy</p>
-                    <p className="text-2xl font-bold text-blue-600">{dept.employeeCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Całkowita pula</p>
-                    <p className="text-2xl font-bold text-purple-600">{dept.totalPoolDays}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Użyte dni</p>
-                    <p className="text-2xl font-bold text-red-600">{dept.totalUsedDays.toFixed(1)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Dostępne</p>
-                    <p className="text-2xl font-bold text-green-600">{dept.totalAvailableDays.toFixed(1)}</p>
-                  </div>
-                  <div className="pt-4 border-t">
-                    <p className="text-sm text-gray-600 mb-1">Średnie wykorzystanie</p>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="h-2 rounded-full bg-blue-500"
-                        style={{ width: `${Math.min(dept.averageUtilizationPercent, 100)}%` }}
-                      />
+            {Array.isArray(departmentData) && departmentData.map((dept, idx) => {
+              const empCount = dept?.employeeCount ?? dept?.totalEmployees ?? 0;
+              const totalPool = dept?.totalPoolDays ?? dept?.totalDays ?? 0;
+              const used = dept?.totalUsedDays ?? dept?.usedDays ?? 0;
+              const avail = dept?.totalAvailableDays ?? dept?.availableDays ?? 0;
+              const avgUtil = dept?.averageUtilizationPercent ?? (totalPool > 0 ? (used / totalPool) * 100 : 0);
+
+              return (
+                <div key={dept.departmentId || idx} className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">{dept.departmentName}</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm text-gray-600">Pracownicy</p>
+                      <p className="text-2xl font-bold text-blue-600">{empCount}</p>
                     </div>
-                    <p className="text-sm font-medium text-gray-700 mt-1">
-                      {dept.averageUtilizationPercent.toFixed(1)}%
-                    </p>
+                    <div>
+                      <p className="text-sm text-gray-600">Całkowita pula</p>
+                      <p className="text-2xl font-bold text-purple-600">{totalPool}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Użyte dni</p>
+                      <p className="text-2xl font-bold text-red-600">{used.toFixed(1)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Dostępne</p>
+                      <p className="text-2xl font-bold text-green-600">{avail.toFixed(1)}</p>
+                    </div>
+                    <div className="pt-4 border-t">
+                      <p className="text-sm text-gray-600 mb-1">Średnie wykorzystanie</p>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="h-2 rounded-full bg-blue-500"
+                          style={{ width: `${Math.min(avgUtil, 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-sm font-medium text-gray-700 mt-1">
+                        {avgUtil.toFixed(1)}%
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {departmentData.length === 0 && (

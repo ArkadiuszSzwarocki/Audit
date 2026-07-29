@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/context/ToastContext';
-import { getRemainingBusinessDays } from '@/utils/bhpDateUtils';
 
 interface User {
   id: string;
@@ -42,7 +41,6 @@ export default function UsersPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('OPERATOR');
-  const [bhpTrainingDueDate, setBhpTrainingDueDate] = useState('');
   const [responsibleAreaId, setResponsibleAreaId] = useState('');
   const [notifyBhp, setNotifyBhp] = useState(false);
   const [notifyQuality, setNotifyQuality] = useState(false);
@@ -57,7 +55,6 @@ export default function UsersPage() {
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editRole, setEditRole] = useState('');
-  const [editBhpDate, setEditBhpDate] = useState('');
   const [editResponsibleAreaId, setEditResponsibleAreaId] = useState('');
   const [editNotifyBhp, setEditNotifyBhp] = useState(false);
   const [editNotifyQuality, setEditNotifyQuality] = useState(false);
@@ -170,7 +167,6 @@ export default function UsersPage() {
           email: finalEmail || null,
           password,
           role,
-          bhpTrainingDueDate: bhpTrainingDueDate || null,
           responsibleAreaId: responsibleAreaId || null,
           notifyBhp,
           notifyQuality,
@@ -190,7 +186,6 @@ export default function UsersPage() {
       setEmail('');
       setPassword('');
       setRole('OPERATOR');
-      setBhpTrainingDueDate('');
       setResponsibleAreaId('');
       setNotifyBhp(false);
       setNotifyQuality(false);
@@ -211,7 +206,6 @@ export default function UsersPage() {
     setEditName(u.name);
     setEditEmail(u.email || '');
     setEditRole(u.role);
-    setEditBhpDate(u.bhpTrainingDueDate ? u.bhpTrainingDueDate.split('T')[0] : '');
     setEditResponsibleAreaId(u.responsibleAreaId || '');
     setEditNotifyBhp(Boolean(u.notifyBhp));
     setEditNotifyQuality(Boolean(u.notifyQuality));
@@ -233,7 +227,6 @@ export default function UsersPage() {
         name: editName.trim(),
         email: formatEmailWithDomain(editEmail) || null,
         role: editRole,
-        bhpTrainingDueDate: editBhpDate ? editBhpDate : null,
         responsibleAreaId: editResponsibleAreaId || null,
         notifyBhp: editNotifyBhp,
         notifyQuality: editNotifyQuality,
@@ -390,33 +383,6 @@ export default function UsersPage() {
     );
   };
 
-  const renderBhpBadge = (dueDate?: string | null) => {
-    if (!dueDate) {
-      return <span className="text-slate-400 text-xs italic">Brak terminu</span>;
-    }
-
-    const remainingDays = getRemainingBusinessDays(dueDate);
-    if (remainingDays <= 0) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-500/15 border border-red-500/30 text-red-600 dark:text-red-400 font-bold text-xs rounded-lg animate-pulse">
-          ⚠️ Minął termin ({remainingDays} dni)
-        </span>
-      );
-    }
-    if (remainingDays <= 14) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-bold text-xs rounded-lg">
-          ⏳ Pozostało: {remainingDays} dni
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium text-xs rounded-lg">
-        ✅ Ważne ({remainingDays} dni)
-      </span>
-    );
-  };
-
   if (authLoading || loading) {
     return <div className="p-8 text-center text-slate-500 font-medium animate-pulse">Ładowanie bazy użytkowników...</div>;
   }
@@ -559,18 +525,6 @@ export default function UsersPage() {
                       </option>
                     ))}
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-amber-800 dark:text-amber-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <span>🦺</span> Data Ważności Szkolenia BHP
-                </label>
-                <input
-                  type="date"
-                  value={bhpTrainingDueDate}
-                  onChange={e => setBhpTrainingDueDate(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold text-sm focus:ring-2 focus:ring-amber-500 outline-none"
-                />
               </div>
 
               {/* Responsible Area Assignment */}
@@ -740,7 +694,6 @@ export default function UsersPage() {
                 <th className="py-4 px-4">E-mail</th>
                 <th className="py-4 px-4">Rola</th>
                 <th className="py-4 px-4">Rejon & Powiadomienia</th>
-                <th className="py-4 px-4">Ważność Szkolenia BHP</th>
                 <th className="py-4 px-4">Data Utworzenia</th>
                 <th className="py-4 px-6 text-right">Akcje</th>
               </tr>
@@ -748,7 +701,7 @@ export default function UsersPage() {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-sm">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400 text-sm font-medium">
+                  <td colSpan={7} className="py-12 text-center text-slate-400 text-sm font-medium">
                     {searchQuery || selectedRoleFilter !== 'ALL'
                       ? 'Nie znaleziono użytkowników spełniających podane kryteria.'
                       : 'Brak zarejestrowanych użytkowników w bazie.'}
@@ -819,9 +772,6 @@ export default function UsersPage() {
                         {u.notifyAudits && <span className="px-1.5 py-0.2 bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-[10px] font-bold rounded">📋 Audyty</span>}
                       </div>
                     </td>
-
-                    {/* BHP Status */}
-                    <td className="py-4 px-4">{renderBhpBadge(u.bhpTrainingDueDate)}</td>
 
                     {/* Created Date */}
                     <td className="py-4 px-4 text-xs text-slate-500">
@@ -1034,18 +984,6 @@ export default function UsersPage() {
                       </option>
                     ))}
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-amber-800 dark:text-amber-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                  <span>🦺</span> Data Ważności Szkolenia BHP
-                </label>
-                <input
-                  type="date"
-                  value={editBhpDate}
-                  onChange={e => setEditBhpDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-amber-50/50 dark:bg-slate-800 border border-amber-300 dark:border-amber-700 rounded-xl font-bold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-brand-500 outline-none text-sm"
-                />
               </div>
 
               {/* Responsible Area Assignment */}

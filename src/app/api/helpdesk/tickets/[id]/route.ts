@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/config/db';
-import { sendHelpDeskNotification, sendApprovedNotificationToHelpDesk } from '@/lib/mailer';
+import { sendHelpDeskNotification, sendApprovedNotificationToHelpDesk, sendChatMessageNotification } from '@/lib/mailer';
 import { getAuthSession } from '@/lib/auth';
 import { verifyTicketToken } from '@/lib/ticket-token';
 
@@ -164,6 +164,7 @@ export async function PATCH(
     // Sprawdź czy użytkownik jest właścicielem ticketu lub adminem
     // Token-based access allows approval, session-based requires ownership or admin or IT assigned
     let isStatusChangeBlocked = false;
+    let isDateBlocked = false;
     if (session) {
       // Fetch current user role from database (JWT may be stale)
       const currentUser = await prisma.user.findUnique({
@@ -175,8 +176,8 @@ export async function PATCH(
       const isAdmin = currentRole === 'ADMIN' || currentRole === 'DIRECTOR' || currentRole === 'MANAGER' || currentRole === 'ZARZAD' || currentRole === 'ZARZĄD';
       const isIT = currentRole === 'IT' || currentRole === 'IT HELP DESK' || currentRole === 'HELPDESK';
       const requiresManagementApproval = ticket.type === 'PURCHASE' && ticket.status === 'PENDING_APPROVAL' && ticket.isApprovedByManager !== true;
-      const attemptedStatusChange = status !== undefined && status !== ticket.status;
-      isStatusChangeBlocked = isIT && !isAdmin && requiresManagementApproval && attemptedStatusChange;
+      isDateBlocked = isIT && !isAdmin && requiresManagementApproval;
+      isStatusChangeBlocked = isDateBlocked && status !== undefined && status !== ticket.status;
       
       console.log('PATCH PERMISSION CHECK:', {
         sessionId: session.id,
@@ -186,12 +187,30 @@ export async function PATCH(
         ticketAssignedToId: ticket.assignedToId,
         isAdmin,
         isIT,
+        requiresManagementApproval,
+        isDateBlocked,
         hasPermission: (ticket.createdById === session.id || isAdmin || isIT),
       });
       
+      if (status === 'PENDING_APPROVAL' && ticket.status !== 'PENDING_APPROVAL') {
+        return NextResponse.json({ error: 'Nie można przywrócić statusu Oczekuje po zmianie na inny status.' }, { status: 400 });
+      }
+
+      if (isIT && !isAdmin && status === 'APPROVED') {
+        return NextResponse.json({ error: 'Status "Zatwierdzono" może być nadany wyłącznie przez Zarząd.' }, { status: 403 });
+      }
+
       if (ticket.createdById !== session.id && !isAdmin && !isIT) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
+    }
+
+    // Zablokuj edycję i dodawanie wiadomości na czacie jeśli zgłoszenie jest zamknięte (status CLOSED)
+    if (ticket.status === 'CLOSED' && (status !== undefined || estimatedDueDate !== undefined || realizationStartedAt !== undefined || realizedAt !== undefined || (message !== undefined && String(message).trim()))) {
+      return NextResponse.json(
+        { error: 'Zgłoszenie zostało zamknięte. Edycja pól oraz czat są zablokowane.' },
+        { status: 400 }
+      );
     }
 
     // Przygotuj dane do aktualizacji i historię
@@ -202,7 +221,24 @@ export async function PATCH(
       : undefined);
 
     if (status !== undefined && status !== ticket.status && !isStatusChangeBlocked) {
+      const isApprovalAction = status === 'APPROVED' || status === 'REJECTED';
+      const finalDueDate = estimatedDueDate !== undefined
+        ? (estimatedDueDate ? new Date(estimatedDueDate) : null)
+        : ticket.estimatedDueDate;
+
+      if (!finalDueDate && !isApprovalAction) {
+        return NextResponse.json(
+          { error: 'Podanie terminu realizacji jest wymagane przy zmianie statusu zgłoszenia.' },
+          { status: 400 }
+        );
+      }
+
       updateData.status = status;
+      if (status === 'APPROVED' || status === 'REJECTED') {
+        updateData.isApprovedByManager = (status === 'APPROVED');
+        updateData.approvedById = session?.id || actorUserId || null;
+        updateData.approvalDate = new Date();
+      }
       if (canCreateHistory) {
         historyEntries.push({
           ticketId: id,
@@ -212,9 +248,24 @@ export async function PATCH(
           newValue: status,
         });
       }
+
+      // Automatyczne przypisanie daty rozpoczęcia realizacji dla statusu OPEN lub IN_PROGRESS, jeśli nie została jeszcze ustawiona
+      if ((status === 'OPEN' || status === 'IN_PROGRESS') && !ticket.realizationStartedAt && realizationStartedAt === undefined && !isDateBlocked) {
+        const autoStartDate = new Date();
+        updateData.realizationStartedAt = autoStartDate;
+        if (canCreateHistory) {
+          historyEntries.push({
+            ticketId: id,
+            changedBy: actorUserId || session!.id,
+            field: 'realizationStartedAt',
+            oldValue: null,
+            newValue: autoStartDate.toISOString(),
+          });
+        }
+      }
     }
 
-    if (estimatedDueDate !== undefined) {
+    if (estimatedDueDate !== undefined && !isDateBlocked) {
       const newDate = estimatedDueDate ? new Date(estimatedDueDate) : null;
       if (newDate?.toISOString() !== ticket.estimatedDueDate?.toISOString()) {
         updateData.estimatedDueDate = newDate;
@@ -292,7 +343,7 @@ export async function PATCH(
     }
 
     // Track realization start
-    if (realizationStartedAt !== undefined) {
+    if (realizationStartedAt !== undefined && !isDateBlocked) {
       const newStartDate = realizationStartedAt ? new Date(realizationStartedAt) : null;
       if (newStartDate?.toISOString() !== ticket.realizationStartedAt?.toISOString()) {
         updateData.realizationStartedAt = newStartDate;
@@ -309,7 +360,7 @@ export async function PATCH(
     }
 
     // Track realization end
-    if (realizedAt !== undefined) {
+    if (realizedAt !== undefined && !isDateBlocked) {
       const newRealizedDate = realizedAt ? new Date(realizedAt) : null;
       if (newRealizedDate?.toISOString() !== ticket.realizedAt?.toISOString()) {
         updateData.realizedAt = newRealizedDate;
@@ -325,9 +376,23 @@ export async function PATCH(
       }
     }
 
-    // Jeśli status zmienia się na CLOSED, ustaw closedAt
+    // Jeśli status zmienia się na CLOSED, automatycznie przypisz datę zakończenia realizacji (realizedAt) oraz closedAt
     if (status === 'CLOSED' && ticket.status !== 'CLOSED') {
-      updateData.closedAt = new Date();
+      const now = new Date();
+      updateData.closedAt = now;
+
+      if (!ticket.realizedAt && !updateData.realizedAt) {
+        updateData.realizedAt = now;
+        if (canCreateHistory) {
+          historyEntries.push({
+            ticketId: id,
+            changedBy: actorUserId || session!.id,
+            field: 'realizedAt',
+            oldValue: null,
+            newValue: now.toISOString(),
+          });
+        }
+      }
     }
 
     // Aktualizuj ticket i dodaj do historii w jednej transakcji
@@ -373,69 +438,92 @@ export async function PATCH(
 
     const ticketToReturn = refreshedTicket || updatedTicket;
 
-    // Send Help Desk notification email if enabled
-    try {
-      const config = await prisma.helpDeskConfig.findUnique({
-        where: { id: 'singleton' }
-      });
+    // Send email notifications asynchronously in the background so HTTP response returns instantly
+    (async () => {
+      // Send email notification for chat message if message was posted
+      if (message !== undefined && String(message).trim()) {
+        try {
+          const trimmedMessage = String(message).trim();
+          const senderUser = session?.id
+            ? await prisma.user.findUnique({ where: { id: session.id }, select: { name: true } })
+            : null;
+          const senderName = senderUser?.name || 'Użytkownik';
 
-      if (config?.isEmailEnabled && config?.helpDeskEmail) {
-        // Send notification for status change
-        if (status !== undefined && status !== ticket.status && config.notifyOnStatusChange) {
-          console.log(`Sending status change notification for ticket ${id}`);
-          await sendHelpDeskNotification(
+          await sendChatMessageNotification(
             id,
-            updatedTicket.title,
-            'STATUS_CHANGE',
-            config.helpDeskEmail,
-            {
-              oldStatus: ticket.status,
-              newStatus: status
-            }
+            ticketToReturn.title,
+            senderName,
+            trimmedMessage,
+            ticketToReturn,
+            session?.id || actorUserId
           );
-        }
-
-        // Wysłanie powiadomienia do Help Desk gdy Zarząd zatwierdzi PURCHASE ticket
-        if (ticket.type === 'PURCHASE' && status === 'APPROVED' && ticket.status === 'PENDING_APPROVAL') {
-          console.log(`Sending approval notification to Help Desk for PURCHASE ticket ${id}`);
-          try {
-            await sendApprovedNotificationToHelpDesk(
-              id,
-              updatedTicket.title,
-              updatedTicket.description,
-              updatedTicket.createdBy?.name || 'Nieznany użytkownik',
-              session?.name || 'Zarząd (email approval)'
-            );
-          } catch (emailError) {
-            console.error('Error sending approval notification to Help Desk:', emailError);
-          }
-        }
-
-        // Send notification for assignment
-        if (assignedToId !== undefined && assignedToId !== ticket.assignedToId && config.notifyOnAssignment) {
-          console.log(`Sending assignment notification for ticket ${id}`);
-          // Get the assigned user's name if they exist
-          const assignedUser = assignedToId ? await prisma.user.findUnique({
-            where: { id: assignedToId },
-            select: { name: true }
-          }) : null;
-
-          await sendHelpDeskNotification(
-            id,
-            updatedTicket.title,
-            'ASSIGNMENT',
-            config.helpDeskEmail,
-            {
-              assignedBy: session?.name || 'Administrator',
-              assignedTo: assignedUser?.name || 'Nieznany'
-            }
-          );
+        } catch (chatEmailErr) {
+          console.error('Error sending chat message email notification:', chatEmailErr);
         }
       }
-    } catch (emailError) {
-      // Log email error but don't fail the ticket update
-      console.error('Error sending Help Desk notification:', emailError);
-    }
+
+      // Send Help Desk notification email if enabled
+      try {
+        const config = await prisma.helpDeskConfig.findUnique({
+          where: { id: 'singleton' }
+        });
+
+        if (config?.isEmailEnabled && config?.helpDeskEmail) {
+          // Send notification for status change
+          if (status !== undefined && status !== ticket.status && config.notifyOnStatusChange) {
+            console.log(`Sending status change notification for ticket ${id}`);
+            await sendHelpDeskNotification(
+              id,
+              updatedTicket.title,
+              'STATUS_CHANGE',
+              config.helpDeskEmail,
+              {
+                oldStatus: ticket.status,
+                newStatus: status
+              }
+            );
+          }
+
+          // Wysłanie powiadomienia do Help Desk gdy Zarząd zatwierdzi PURCHASE ticket
+          if (ticket.type === 'PURCHASE' && status === 'APPROVED' && ticket.status === 'PENDING_APPROVAL') {
+            console.log(`Sending approval notification to Help Desk for PURCHASE ticket ${id}`);
+            try {
+              await sendApprovedNotificationToHelpDesk(
+                id,
+                updatedTicket.title,
+                updatedTicket.description,
+                updatedTicket.createdBy?.name || 'Nieznany użytkownik',
+                session?.name || 'Zarząd (email approval)'
+              );
+            } catch (emailError) {
+              console.error('Error sending approval notification to Help Desk:', emailError);
+            }
+          }
+
+          // Send notification for assignment
+          if (assignedToId !== undefined && assignedToId !== ticket.assignedToId && config.notifyOnAssignment) {
+            console.log(`Sending assignment notification for ticket ${id}`);
+            const assignedUser = assignedToId ? await prisma.user.findUnique({
+              where: { id: assignedToId },
+              select: { name: true }
+            }) : null;
+
+            await sendHelpDeskNotification(
+              id,
+              updatedTicket.title,
+              'ASSIGNMENT',
+              config.helpDeskEmail,
+              {
+                assignedBy: session?.name || 'Administrator',
+                assignedTo: assignedUser?.name || 'Nieznany'
+              }
+            );
+          }
+        }
+      } catch (emailError) {
+        console.error('Error sending Help Desk notification:', emailError);
+      }
+    })().catch(err => console.error('Background email notification error:', err));
 
     return NextResponse.json(ticketToReturn);
   } catch (error: any) {

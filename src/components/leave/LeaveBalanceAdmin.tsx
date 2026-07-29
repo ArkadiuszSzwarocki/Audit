@@ -14,7 +14,8 @@ export function LeaveBalanceAdmin() {
     error,
     fetchAllBalances,
     adjustBalance,
-    setTotalDays
+    setTotalDays,
+    setOverdueDays,
   } = useLeaveBalance();
 
   const [balances, setBalances] = useState<any[]>([]);
@@ -70,17 +71,30 @@ export function LeaveBalanceAdmin() {
   const handleSetTotal = async (balance: any, newTotal: number) => {
     const result = await setTotalDays(balance.userId, newTotal, 'Zmiana manualna przez admina', selectedYear);
     if (result.success) {
-      showToast(`Pula zmieniona na ${newTotal} dni`, 'success');
+      showToast(`Pula bieżąca zmieniona na ${newTotal} dni`, 'success');
       await loadBalances();
     } else {
       showToast(`Błąd: ${result.error}`, 'error');
     }
   };
 
-  if (!user || !['ADMIN', 'HR'].includes(user.role)) {
+  const handleSetOverdue = async (balance: any, newOverdue: number) => {
+    const result = await setOverdueDays(balance.userId, newOverdue, selectedYear);
+    if (result.success) {
+      showToast(`Wymiar urlopu zaległego (2025 r.) uaktualniony do ${newOverdue} dni`, 'success');
+      await loadBalances();
+    } else {
+      showToast(`Błąd: ${result.error}`, 'error');
+    }
+  };
+
+  const userRoleUpper = (user?.role || '').toUpperCase();
+  const canManageBalances = ['ADMIN', 'ADMINISTRATOR', 'ZARZAD', 'ZARZĄD', 'DIRECTOR', 'HR'].includes(userRoleUpper);
+
+  if (!user || !canManageBalances) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">Brak dostępu. Tylko administracyjne może zarządzać pulami urlopów.</p>
+        <p className="text-gray-500 font-semibold">Brak dostępu. Zarządzanie pulami urlopów jest dostępne dla Administratora, Kadrowej / HR, Zarządu i Dyrekcji.</p>
       </div>
     );
   }
@@ -205,6 +219,7 @@ export function LeaveBalanceAdmin() {
               loading={loading}
               onAdjust={(adj) => handleAdjustBalance(balance, adj)}
               onSetTotal={(total) => handleSetTotal(balance, total)}
+              onSetOverdue={(overdue) => handleSetOverdue(balance, overdue)}
             />
           ))}
         </div>

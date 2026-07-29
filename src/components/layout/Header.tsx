@@ -40,6 +40,7 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
   const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
   const [isBugReportModalOpen, setIsBugReportModalOpen] = useState(false);
   const [unreadBugCount, setUnreadBugCount] = useState(0);
+  const [unreadHelpDeskCount, setUnreadHelpDeskCount] = useState(0);
   const [payoutTab, setPayoutTab] = useState<'NEW_PAYOUT' | 'HISTORY'>('NEW_PAYOUT');
 
   useEffect(() => {
@@ -60,13 +61,58 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
     if (user) {
       fetchUserStats();
       fetchBugUnreadCount();
+      fetchHelpDeskUnreadCount();
       const interval = setInterval(() => {
         fetchUserStats();
         fetchBugUnreadCount();
+        fetchHelpDeskUnreadCount();
       }, 10000);
       return () => clearInterval(interval);
     }
   }, [user]);
+
+  const fetchHelpDeskUnreadCount = async () => {
+    try {
+      const res = await fetch('/api/helpdesk/tickets');
+      if (res.ok) {
+        const tickets = await res.json();
+        const currentUserId = user?.id;
+        const roleUpper = String(user?.role || '').toUpperCase();
+        const isHelpDesk = ['IT', 'IT HELP DESK', 'HELPDESK'].includes(roleUpper);
+
+        let localReadMap: Record<string, number> = {};
+        if (currentUserId) {
+          try {
+            const saved = localStorage.getItem(`helpdesk_read_tickets_${currentUserId}`);
+            if (saved) localReadMap = JSON.parse(saved);
+          } catch {}
+        }
+
+        const unreadTickets = tickets.filter((t: any) => {
+          const messages = t.history?.filter((h: any) => h.field === 'message') || [];
+          if (messages.length === 0) return false;
+          const lastMsg = messages[0];
+          const isFromOther = lastMsg.user?.id !== currentUserId && lastMsg.changedBy !== currentUserId;
+          if (!isFromOther) return false;
+
+          const latestMsgTime = new Date(lastMsg.createdAt).getTime();
+          const localReadTime = localReadMap[t.id] || 0;
+
+          if (isHelpDesk) {
+            const helpDeskReadTime = t.readByHelpDeskAt ? new Date(t.readByHelpDeskAt).getTime() : 0;
+            const effectiveReadTime = Math.max(localReadTime, helpDeskReadTime);
+            return latestMsgTime > effectiveReadTime;
+          }
+
+          return latestMsgTime > localReadTime;
+        });
+
+        setUnreadHelpDeskCount(unreadTickets.length);
+      }
+    } catch {
+      // Ignore background errors
+    }
+  };
 
   const fetchBugUnreadCount = async () => {
     try {
@@ -129,6 +175,23 @@ export default function Header({ onOpenMobileMenu }: HeaderProps) {
 
           {/* Action / User section */}
           <div className="flex items-center gap-2 sm:gap-3">
+
+            {/* Help Desk Link / Indicator Button */}
+            {user && (
+              <Link
+                href="/helpdesk"
+                className="relative p-2 sm:px-3 sm:py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 font-extrabold text-xs transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                title="Help Desk IT - Zgłoszenia i Wsparcie"
+              >
+                <span className="text-base">🆘</span>
+                <span className="hidden sm:inline">Help Desk</span>
+                {unreadHelpDeskCount > 0 && (
+                  <span className="px-1.5 py-0.5 bg-blue-600 text-white font-black text-[10px] rounded-full shadow-xs animate-pulse">
+                    {unreadHelpDeskCount}
+                  </span>
+                )}
+              </Link>
+            )}
 
             {/* Robaczek - Zgłoś Problem Button - hidden only for restricted Help Desk users */}
             {user && !isRestrictedHelpDeskUser && (

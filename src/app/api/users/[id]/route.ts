@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/config/db';
 import { getAuthSession } from '@/lib/auth';
+import { UserRepository } from '@/repositories/UserRepository';
 import bcrypt from 'bcryptjs';
+
+const userRepository = new UserRepository();
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<any> }) {
   const session = await getAuthSession();
@@ -136,7 +139,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       }, { status: 403 });
     }
 
-    await prisma.user.delete({ where: { id } });
+    await userRepository.delete(id);
     return NextResponse.json({ success: true, message: `Usunięto użytkownika ${targetUser.name}` });
   } catch (error: any) {
     console.error('DELETE /api/users/[id] error:', error);

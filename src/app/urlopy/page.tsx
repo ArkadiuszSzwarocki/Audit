@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLeaves } from '@/hooks/useLeaves';
 import { useDepartments } from '@/hooks/useDepartments';
 import { LeaveCalendar } from '@/components/ui/LeaveCalendar';
+import { LeaveRequestHistory } from '@/components/leave/LeaveRequestHistory';
 
 export default function UrlopyPage() {
   const { user } = useAuth();
@@ -47,6 +48,8 @@ export default function UrlopyPage() {
       fetchLeaveRequests(user.id);
       fetchLeaveBalance(user.id);
     }
+    // Dispatch custom event to refresh history component
+    window.dispatchEvent(new CustomEvent('leave-request-created'));
   };
 
   if (!user) {
@@ -88,6 +91,11 @@ export default function UrlopyPage() {
           />
         </div>
 
+        {/* Historia wniosków urlopowych */}
+        <div className="mb-8">
+          <LeaveRequestHistory userId={user.id} />
+        </div>
+
         {/* Sekcja informacyjna */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Jak to działa */}
@@ -95,7 +103,7 @@ export default function UrlopyPage() {
             <h2 className="text-xl font-bold text-gray-900 mb-4">❓ Jak to działa?</h2>
             <ul className="space-y-2 text-gray-700 text-sm">
               <li>✅ Kliknij na dni w kalendarzu, aby wybrać okres urlopu</li>
-              <li>✅ Kliknij "Złóż wniosek urlopowy", aby utworzyć wniosek</li>
+              <li>✅ Kliknij &quot;Złóż wniosek urlopowy&quot;, aby utworzyć wniosek</li>
               <li>✅ Wybierz typ urlopu (zwykły, L4, bezpłatny itp.)</li>
               <li>✅ Twój manager zatwierdzi lub odrzuci wniosek</li>
               <li>✅ Po zatwierdzeniu dni zostaną odjęte z puli</li>
@@ -129,3 +137,4 @@ export default function UrlopyPage() {
     </div>
   );
 }
+

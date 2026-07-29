@@ -47,7 +47,7 @@ export function LeaveCalendar({
   year = new Date().getFullYear()
 }: LeaveCalendarProps) {
   const { user } = useAuth();
-  const { leaveRequests, leaveBalance } = useLeaves();
+  const { leaveRequests, leaveBalance, fetchLeaveRequests, fetchLeaveBalance } = useLeaves();
   const { schedule } = useShifts();
 
   const [currentMonth, setCurrentMonth] = useState(month);
@@ -55,17 +55,32 @@ export function LeaveCalendar({
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [isLeaveRequestModalOpen, setIsLeaveRequestModalOpen] = useState(false);
 
+  // Pobierz wnioski urlopowe i pulę przy montowaniu
+  useEffect(() => {
+    if (userId) {
+      fetchLeaveRequests(userId);
+      fetchLeaveBalance(userId);
+    }
+  }, [userId]);
+
+  // Normalizuje datę do formatu YYYY-MM-DD (bez timezone)
+  const toDateStr = (d: Date | string): string => {
+    const dt = new Date(d);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  };
+
   // Sprawdza status urlopu dla daty
   const getLeaveStatusForDate = (date: Date): string | undefined => {
+    const dateStr = toDateStr(date);
     for (const leave of leaveRequests) {
-      const startDate = new Date(leave.startDate);
-      const endDate = new Date(leave.endDate);
+      const startStr = toDateStr(leave.startDate);
+      const endStr = toDateStr(leave.endDate);
 
-      if (date >= startDate && date <= endDate) {
+      if (dateStr >= startStr && dateStr <= endStr) {
+        if ((leave.type as string) === 'SICK_LEAVE' || (leave.type as string) === 'CHOROBOWY') return 'SICK_LEAVE';
         if (leave.status === 'APPROVED') return 'VACATION_APPROVED';
         if (leave.status === 'PENDING') return 'VACATION_PENDING';
         if (leave.status === 'REJECTED') return 'REJECTED';
-        if (leave.type === 'SICK_LEAVE') return 'SICK_LEAVE';
       }
     }
     return undefined;
@@ -381,6 +396,9 @@ export function LeaveCalendar({
         startDate={selectedDates.length > 0 ? selectedDates[0] : undefined}
         endDate={selectedDates.length > 0 ? selectedDates[selectedDates.length - 1] : undefined}
         onLeaveRequestCreated={() => {
+          // Odśwież dane kalendarza
+          fetchLeaveRequests(userId);
+          fetchLeaveBalance(userId);
           if (onLeaveRequestCreated) {
             onLeaveRequestCreated();
           }

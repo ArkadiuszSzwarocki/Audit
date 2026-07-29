@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { TicketForm } from '@/components/helpdesk/TicketForm';
 import { TicketList } from '@/components/helpdesk/TicketList';
 
@@ -46,7 +46,9 @@ export default function HelpDeskPage() {
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Zgłoszenia do przetworzenia</h2>
             <span className="text-2xl">📋</span>
           </div>
-          <TicketList key={refreshKey} />
+          <Suspense fallback={<div className="p-8 text-center text-slate-500">Ładowanie zgłoszeń...</div>}>
+            <TicketList key={refreshKey} />
+          </Suspense>
         </div>
       </div>
 

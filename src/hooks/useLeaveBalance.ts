@@ -174,6 +174,41 @@ export function useLeaveBalance() {
     }
   }, []);
 
+  const setOverdueDays = useCallback(async (
+    userId: string,
+    overdueDays: number,
+    year?: number
+  ) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/leave-balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'set-overdue',
+          userId,
+          year,
+          overdueDays,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Nie udało się ustalić urlopu zaległego');
+      }
+
+      const data = await response.json();
+      return { success: true, data };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Nieznany błąd';
+      setError(message);
+      return { success: false, error: message };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -181,6 +216,7 @@ export function useLeaveBalance() {
     fetchUserBalance,
     adjustBalance,
     setTotalDays,
-    resetBalance
+    setOverdueDays,
+    resetBalance,
   };
 }
